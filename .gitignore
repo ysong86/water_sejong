@@ -1,0 +1,15 @@
+# 인증키가 들어가는 파일 — 절대 커밋하지 말 것
+config.json
+
+# 수집 결과와 생성물
+data/latest.json
+dashboard.html
+site/
+
+# 파이썬
+__pycache__/
+*.pyc
+
+# 작업 중 파일
+_*.html
+_*.geojson

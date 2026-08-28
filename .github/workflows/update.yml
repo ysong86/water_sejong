@@ -1,0 +1,82 @@
+name: 상황판 갱신·배포
+
+# 10분마다 수집해 GitHub Pages 로 올린다. 내 PC 가 꺼져 있어도 돈다.
+# 한강홍수통제소 수위·강수가 10분 주기라 거기에 맞췄다. 다른 소스는 1시간 주기라
+# 같은 값이 여러 번 실릴 수 있지만, 화면의 관측시각으로 구분된다.
+# GitHub 의 예약 실행은 부하에 따라 몇 분 늦을 수 있다(보장 주기가 아님).
+# 인증키는 저장소가 아니라 Settings → Secrets and variables → Actions 에 넣는다.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}          # 수동 실행 버튼
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false      # 배포 중간에 끊기면 이전 화면이 깨진다
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 수집 및 상황판 생성
+        env:
+          HRFCO_KEY: ${{ secrets.HRFCO_KEY }}
+          KMA_KEY: ${{ secrets.KMA_KEY }}
+          NIER_KEY: ${{ secrets.NIER_KEY }}
+          GIMS_KEY: ${{ secrets.GIMS_KEY }}
+        # 키가 없는 소스는 알아서 건너뛴다. 한 소스가 죽어도 나머지로 화면은 나온다.
+        run: python run.py --collect --out site
+
+      - name: 수집 요약 남기기
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os
+          path = "data/latest.json"
+          if not os.path.exists(path):
+              print("수집 결과 파일이 없습니다."); raise SystemExit
+          data = json.load(open(path, encoding="utf-8"))
+          lines = ["| 소스 | 결과 |", "|---|---|"]
+          counts = {
+              "hrfco": lambda d: "수위 %d · 강수 %d" % (len(d.get("waterlevel") or []),
+                                                      len(d.get("rainfall") or [])),
+              "nier":  lambda d: "지점 %d" % len(d.get("points") or []),
+              "gims":  lambda d: "관측정 %d" % len(d.get("stations") or []),
+              "kma":   lambda d: "실황 %s" % ("O" if d.get("now") else "X"),
+          }
+          for key, label in (("hrfco","하천·강수"), ("nier","수질"),
+                             ("gims","지하수"), ("kma","기상")):
+              section = data.get(key) or {}
+              errors = section.get("errors") or []
+              text = counts[key](section) if not errors else "; ".join(errors)[:180]
+              lines.append("| %s | %s |" % (label, text.replace("|", "/")))
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              open(summary, "a", encoding="utf-8").write("\n".join(lines) + "\n")
+          print("\n".join(lines))
+          PY
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

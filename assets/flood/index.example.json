@@ -1,0 +1,8 @@
+{
+  "_안내": "이 파일을 index.json 으로 복사하거나, tools/make_flood.py 가 자동으로 만들게 하세요.",
+  "_형식": "file 은 이 폴더 기준 상대경로. GeoJSON(Polygon/MultiPolygon) 또는 {\"rings\":[[[경도,위도],...]]} 모두 인식합니다.",
+  "layers": [
+    {"id": "riv_100", "type": "외수", "freq": "100년", "file": "riv_100.json"},
+    {"id": "urb_050", "type": "내수", "freq": "50년", "depth": "1.0~2.0m", "file": "urb_050.json"}
+  ]
+}

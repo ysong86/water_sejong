@@ -1,0 +1,96 @@
+{
+  "_주석": "config.json 으로 복사한 뒤 각 key 를 채우세요. key 가 비어 있는 소스는 조용히 건너뜁니다.",
+  "hrfco": {
+    "_발급": "https://www.hrfco.go.kr → 오픈API → 인증키 신청 (공공데이터포털 아님)",
+    "key": "여기에_한강홍수통제소_인증키",
+    "address_keywords": [
+      "세종"
+    ],
+    "waterlevel_stations": [],
+    "rainfall_stations": [],
+    "max_stations": 8,
+    "hours": 24,
+    "time_type": "10M",
+    "_주기": "10M(기본) / 1H / 1D. HRFCO 는 10분마다 갱신하므로 10M 을 권장."
+  },
+  "nier": {
+    "_발급": "https://www.data.go.kr → '국립환경과학원 수질' 검색 → 활용신청 → 일반 인증키",
+    "_안내": "endpoint 를 비워두면 후보를 자동 타진합니다. python run.py --probe 로 확정하세요.",
+    "key": "여기에_공공데이터포털_인증키",
+    "endpoint": "",
+    "point_codes": [],
+    "name_keywords": [
+      "세종",
+      "금강",
+      "미호",
+      "대청"
+    ],
+    "extra_params": {},
+    "_좌표": "실시간 수질 API 는 좌표를 안 주는 경우가 많다. 지도에 찍으려면 지점명(또는 코드) → [경도, 위도] 로 넣어라.",
+    "point_coords": {
+      "금강_세종": [
+        127.287,
+        36.498
+      ]
+    }
+  },
+  "kma": {
+    "_발급": "https://www.data.go.kr → '기상청 단기예보 조회서비스' → 활용신청",
+    "key": "여기에_공공데이터포털_인증키",
+    "lat": 36.48,
+    "lon": 127.289,
+    "nx": null,
+    "ny": null,
+    "forecast_hours": 24,
+    "warnings": true,
+    "stn_id": "133"
+  },
+  "gims": {
+    "_발급": "공공데이터포털 '국가지하수측정자료조회서비스'(data.go.kr/data/15114511) 또는 국가지하수정보센터(gims.go.kr) 오픈API",
+    "_안내": "data_endpoint 를 비우면 후보를 타진한다. python run.py --probe --only gims 로 확정할 것.",
+    "key": "여기에_지하수_인증키",
+    "data_endpoint": "",
+    "hours": 24,
+    "param_names": {
+      "code": "gennum",
+      "begin": "begindate",
+      "end": "enddate"
+    },
+    "extra_params": {},
+    "_관측소": "network 은 national(국가지하수관측망) 또는 local(지자체·보조관측망). 좌표는 지도 표출용.",
+    "stations": [
+      {
+        "name": "세종연기",
+        "code": "",
+        "lat": 36.532,
+        "lon": 127.265,
+        "network": "national"
+      },
+      {
+        "name": "세종금남",
+        "code": "",
+        "lat": 36.462,
+        "lon": 127.295,
+        "network": "national"
+      }
+    ]
+  },
+  "site": {
+    "_카운터": "provider: none | goatcounter | custom. custom 워커는 기본이 hits(모든 방문=조회수). 순방문자로 바꾸려면 워커 COUNT_MODE=unique + label='방문자 수'.",
+    "counter": {
+      "provider": "none",
+      "code": "",
+      "path": "/",
+      "url": "",
+      "label": "조회수"
+    },
+    "contact": {
+      "org": "세종연구원",
+      "name": "송양호",
+      "title": "책임연구위원",
+      "email": "ysong@sri.re.kr",
+      "role": "제작"
+    },
+    "_문의": "role 은 '제작' 대신 '작성' 등으로 바꿀 수 있다. 화면 하단에 제작자·문의처로 표시된다."
+  }
+}
