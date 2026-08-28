@@ -362,6 +362,9 @@ header.top .sub {
   align-items: start;
 }
 .explorer > .panel { padding: 15px 16px 17px; }
+/* 관측지점이 없을 때는 지도만 나오므로 전체 폭을 쓴다 */
+.explorer.nodata { grid-template-columns: 1fr; }
+.explorer.nodata .map { max-height: min(66vh, 620px); }
 
 .side { max-height: min(78vh, 760px); overflow-y: auto; scrollbar-width: thin; }
 .side h3 {

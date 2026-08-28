@@ -497,8 +497,15 @@ ZOOM_JS = r"""
 def render_explorer(points: list) -> str:
     floods = sejong_map.load_floods()
     if not points:
-        return ('<section class="panel"><h2>지점 탐색</h2>'
-                '<div class="empty">표시할 관측지점이 없습니다.</div></section>')
+        # 관측지점이 없어도 행정구역·하천수계는 보여준다. 지도까지 사라지면
+        # 화면이 통째로 비어 무엇이 잘못됐는지 알 수 없다.
+        return ('<div class="explorer nodata">'
+                '<section class="panel mapwrap"><h2>세종시 지도'
+                '<span class="src">행정구역 · 하천수계</span></h2>%s%s'
+                '<p class="note" style="margin:11px 0 0">관측지점이 없습니다. '
+                '인증키를 넣으면 수위·강수·수질·지하수 지점이 이 지도에 표시됩니다.</p>'
+                '</section></div>'
+                % (render_maptools(floods), sejong_map.render([])))
 
     listing = []
     for group in ("하천 수위", "강수량", "수질", "지하수"):
@@ -780,6 +787,15 @@ THEME_JS = r"""
 """
 
 
+def has_any_data(data: dict) -> bool:
+    """어느 소스든 실제 값이 하나라도 들어왔는가."""
+    hrfco = data.get("hrfco") or {}
+    return bool((hrfco.get("waterlevel") or []) or (hrfco.get("rainfall") or [])
+                or ((data.get("nier") or {}).get("points") or [])
+                or ((data.get("gims") or {}).get("stations") or [])
+                or ((data.get("kma") or {}).get("now")))
+
+
 def render_sources(data: dict) -> str:
     """어떤 주소에서 받아온 값인지 남긴다. 수치를 검증할 때 이게 있어야 한다."""
     used = []
@@ -822,9 +838,22 @@ def render(data: dict) -> str:
         alerts = ('<div class="alerts"><h3>기상특보</h3>'
                   '<ul style="margin:0;padding-left:18px">%s</ul></div>' % items)
 
-    banner = ('<span class="badge demo">샘플 데이터</span>' if demo
-              else '<span class="badge live">실측 연동</span>')
+    if demo:
+        banner = '<span class="badge demo">샘플 데이터</span>'
+    elif has_any_data(data):
+        banner = '<span class="badge live">실측 연동</span>'
+    else:
+        # 키가 없거나 전 소스가 실패한 상태. "실측 연동" 이라고 쓰면 거짓말이 된다.
+        banner = '<span class="badge demo">자료 없음</span>'
+
     demo_note = ""
+    if not demo and not has_any_data(data):
+        demo_note = ('<div class="alerts warn"><h3>아직 수집된 자료가 없습니다</h3>'
+                     '<div>API 인증키가 설정되지 않았거나 모든 소스가 실패했습니다. '
+                     '아래 <b>수집 경고</b>에 소스별 사유가 적혀 있습니다. '
+                     'GitHub 저장소의 Settings → Secrets and variables → Actions 에 '
+                     '<code>HRFCO_KEY</code> <code>KMA_KEY</code> <code>NIER_KEY</code> '
+                     '<code>GIMS_KEY</code> 를 넣고 워크플로를 다시 실행하십시오.</div></div>')
     if demo:
         demo_note = ('<div class="alerts warn">'
                      '<h3>이 화면의 수치는 실제 관측값이 아닙니다</h3>'
