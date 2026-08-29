@@ -25,7 +25,7 @@ for stream in (sys.stdout, sys.stderr):
         pass
 
 import build_dashboard
-from collectors import demo, gims, hrfco, kma, nier
+from collectors import demo, gims, hrfco, kma, nier, nierstat
 from collectors.common import (BASE_DIR, CollectError, load_config, load_json,
                                now_kst, save_json, stamp)
 
@@ -41,6 +41,7 @@ def collect(cfg: dict) -> dict:
         ("nier", "물환경정보시스템", nier.collect, cfg.get("nier") or {}),
         ("gims", "지하수관측망", gims.collect, cfg.get("gims") or {}),
         ("kma", "기상청", kma.collect, cfg.get("kma") or {}),
+        ("nierstat", "오염원통계", nierstat.collect, cfg.get("nierstat") or {}),
     ]
     for key, label, func, section in sources:
         api_key = (section.get("key") or "").strip()
@@ -57,6 +58,8 @@ def collect(cfg: dict) -> dict:
                 "nier": lambda d: "지점 %d" % len(d.get("points") or []),
                 "gims": lambda d: "관측정 %d" % len(d.get("stations") or []),
                 "kma": lambda d: "실황 %s" % ("O" if d.get("now") else "X"),
+                "nierstat": lambda d: "항목 %d" % sum(
+                    1 for b in (d.get("blocks") or []) if b.get("rows")),
             }[key](data[key])
             print(" %s" % counts)
         except CollectError as exc:
@@ -69,7 +72,8 @@ def collect(cfg: dict) -> dict:
 
 
 PROBE_TARGETS = {
-    "nier": ("실시간 수질", nier, "nier.endpoint"),
+    "nier": ("수질측정망", nier, "nier.endpoint"),
+    "nierstat": ("시군구 오염원 통계", nierstat, "nierstat.operations"),
     "gims": ("지하수 관측망", gims, "gims.data_endpoint"),
 }
 
@@ -146,7 +150,8 @@ def main(argv=None) -> int:
     parser.add_argument("--dashboard", action="store_true", help="캐시로 HTML 만 재생성")
     parser.add_argument("--probe", action="store_true",
                         help="수질·지하수 엔드포인트 타진")
-    parser.add_argument("--only", default=None, choices=["nier", "gims"],
+    parser.add_argument("--only", default=None,
+                        choices=["nier", "gims", "nierstat"],
                         help="--probe 대상을 하나로 한정")
     parser.add_argument("--url", default=None,
                         help="포털에서 복사한 요청주소 하나만 시험 (--only 와 함께)")

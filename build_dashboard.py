@@ -732,6 +732,7 @@ VIEW_SECTIONS = [
     ("explorer", "지점 탐색"),
     ("quality", "수질 전 지점"),
     ("weather", "기상"),
+    ("pollution", "오염원 통계"),
 ]
 
 VIEW_JS = r"""
@@ -928,6 +929,27 @@ def render_sources(data: dict) -> str:
     return '<br>사용 엔드포인트 — ' + ' · '.join(used)
 
 
+def render_pollution(data: dict) -> str:
+    """세종시 수질오염원 현황(연 단위 통계). 실시간 값과 성격이 달라 기준연도를 밝힌다."""
+    stat = data.get("nierstat") or {}
+    blocks = [b for b in (stat.get("blocks") or []) if b.get("rows")]
+    if not blocks:
+        return ('<div class="empty">오염원 통계가 없습니다. 공공데이터포털에서 '
+                '「국립환경과학원_시군구 통계 서비스」를 활용신청하면 채워집니다.</div>')
+
+    cards = []
+    for block in blocks:
+        rows = "".join(
+            '<div class="q"><div class="l">%s</div><div class="v">%s</div></div>'
+            % (esc(row["label"]), fmt(row["value"], row["digits"], " " + row["unit"]))
+            for row in block["rows"])
+        cards.append('<div class="sect" style="margin-top:0;padding-top:0;border:0">'
+                     '<h4>%s <span style="font-weight:400;text-transform:none">'
+                     '%s년 기준</span></h4><div class="qgrid">%s</div></div>'
+                     % (esc(block["label"]), esc(block.get("year") or "—"), rows))
+    return "".join(cards)
+
+
 def render_errors(data: dict) -> str:
     buckets = [("하천/강수(HRFCO)", (data.get("hrfco") or {}).get("errors") or []),
                ("실시간 수질(국립환경과학원)", (data.get("nier") or {}).get("errors") or []),
@@ -1007,6 +1029,10 @@ def render(data: dict) -> str:
     %s</section>
   <section class="panel" data-view="weather"><h2>기상<span class="src">기상청 단기예보</span></h2>
     %s</section>
+  <section class="panel" data-view="pollution"><h2>세종시 수질오염원
+    <span class="src">국립환경과학원 시군구 통계</span></h2>
+    <p class="note">연 단위 통계입니다. 실시간 값이 아닙니다.</p>
+    %s</section>
 </div>
 %s
 <footer>
@@ -1023,7 +1049,7 @@ def render(data: dict) -> str:
         THEME_BOOT, load_css(), FONT_LINK, banner, esc(generated), THEME_TOGGLE, demo_note, alerts, render_viewbar(), kpis,
         render_freshness(data),
         render_explorer(build_points(data)),
-        render_quality(nier), render_weather(kma),
+        render_quality(nier), render_weather(kma), render_pollution(data),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
         THEME_JS + VIEW_JS)
