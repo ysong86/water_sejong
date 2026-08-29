@@ -148,5 +148,13 @@
       }
     ],
     "extra_params": {}
+  },
+  "deploy": {
+    "_안내": "NAS 등에서 git 없이 GitHub Contents API 로 올릴 때 쓴다. tools/publish_nas.py 참고.",
+    "_토큰": "https://github.com/settings/tokens?type=beta 에서 water_sejong 저장소에 Contents=Read and write 권한만. 환경변수 GITHUB_TOKEN 으로 줘도 된다.",
+    "repo": "ysong86/water_sejong",
+    "branch": "gh-pages",
+    "path": "index.html",
+    "token": ""
   }
 }
