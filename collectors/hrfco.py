@@ -109,11 +109,20 @@ def filter_stations(stations: list[dict], include: list[str],
     return picked
 
 
+TIME_FMT = {"10M": "%Y%m%d%H%M", "1H": "%Y%m%d%H", "1D": "%Y%m%d"}
+
+
 def fetch_series(key: str, code: str, hydro: str = "waterlevel",
-                 hours: int = 24, time_type: str = "10M") -> list[dict]:
+                 hours: int = 24, time_type: str = "1H") -> list[dict]:
+    """기간 시계열.
+
+    주의 — 10M 로 기간을 지정하면 HRFCO 는 행은 주지만 값을 전부 공백으로 돌려준다
+    (관측소·기간 무관하게 재현됨). 그래서 추이는 1H 로 받고, 10분 해상도의
+    현재값은 fetch_latest() 로 따로 가져와 덮어쓴다.
+    """
     end = now_kst()
     start = end - timedelta(hours=hours)
-    fmt = "%Y%m%d%H%M" if time_type != "1D" else "%Y%m%d"
+    fmt = TIME_FMT.get(time_type, "%Y%m%d%H")
     url = (f"{BASE}/{key}/{hydro}/list/{time_type}/{code}/"
            f"{start.strftime(fmt)}/{end.strftime(fmt)}.json")
     payload = http_json(url)
@@ -130,6 +139,22 @@ def fetch_series(key: str, code: str, hydro: str = "waterlevel",
         series.append(point)
     series.sort(key=lambda p: p["t"])
     return series
+
+
+def fetch_latest(key: str, code: str, hydro: str = "waterlevel") -> dict | None:
+    """기간 없이 코드만 지정하면 10분 단위 최신 1건이 값과 함께 온다."""
+    url = f"{BASE}/{key}/{hydro}/list/10M/{code}.json"
+    for raw in _rows(http_json(url)):
+        row = _lower(raw)
+        ymdhm = str(row.get("ymdhm") or "").strip()
+        value = to_float(row.get("wl")) if hydro == "waterlevel" else to_float(row.get("rf"))
+        if not ymdhm or value is None:
+            continue
+        point = {"t": ymdhm, "v": value}
+        if hydro == "waterlevel":
+            point["fw"] = to_float(row.get("fw"))
+        return point
+    return None
 
 
 def flood_stage(level, st: dict) -> tuple[str, str]:
@@ -169,12 +194,19 @@ def collect(key: str, cfg: dict) -> dict:
             try:
                 series = fetch_series(key, st["code"], hydro,
                                       hours=int(cfg.get("hours", 24)),
-                                      time_type=cfg.get("time_type", "10M"))
+                                      time_type=cfg.get("time_type", "1H"))
             except CollectError as exc:
                 entry.update(latest=None, series=[], error=str(exc))
                 result[hydro].append(entry)
                 continue
+
             latest = next((p for p in reversed(series) if p["v"] is not None), None)
+            try:                       # 10분 해상도 현재값으로 갈아끼운다
+                fresh = fetch_latest(key, st["code"], hydro)
+            except CollectError:
+                fresh = None
+            if fresh and (not latest or fresh["t"] >= latest["t"][:len(fresh["t"])]):
+                latest = fresh
             entry["series"] = series
             entry["latest"] = latest
             if hydro == "waterlevel":
@@ -182,7 +214,7 @@ def collect(key: str, cfg: dict) -> dict:
                 entry["stage"], entry["stage_label"] = flood_stage(level, st)
                 # 직전 관측과의 차가 아니라 "1시간 전 대비" 로 잡는다.
                 # 10분 해상도에서 직전 값과 비교하면 변화량이 사실상 0으로 보인다.
-                step = {"10M": 6, "1H": 1, "1D": 1}.get(cfg.get("time_type", "10M"), 6)
+                step = {"10M": 6, "1H": 1, "1D": 1}.get(cfg.get("time_type", "1H"), 1)
                 prior = [p["v"] for p in series if p["v"] is not None]
                 entry["delta_1h"] = (round(prior[-1] - prior[-1 - step], 3)
                                      if len(prior) > step else None)

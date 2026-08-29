@@ -47,9 +47,13 @@ def fmt(value, digits=2, unit="", dash="—"):
 
 
 def hhmm(ymdhm) -> str:
+    """YYYYMMDDHHmm / YYYYMMDDHH / YYYYMMDD 를 사람이 읽는 꼴로.
+    HRFCO 는 1시간 자료를 10자리(YYYYMMDDHH)로 준다."""
     text = str(ymdhm or "")
     if len(text) >= 12:
         return f"{text[4:6]}/{text[6:8]} {text[8:10]}:{text[10:12]}"
+    if len(text) == 10:
+        return f"{text[4:6]}/{text[6:8]} {text[8:10]}:00"
     if len(text) >= 8:
         return f"{text[4:6]}/{text[6:8]}"
     return text or "—"
@@ -612,7 +616,8 @@ STALE_LIMIT = {"waterlevel": 30, "rainfall": 30, "quality": 180,
 def _parse_stamp(text):
     """YYYYMMDDHHMM / YYYYMMDD / 'YYYY-MM-DD HH:MM' 을 datetime 으로."""
     text = str(text or "").strip()
-    for fmt, size in (("%Y%m%d%H%M", 12), ("%Y-%m-%d %H:%M", 16), ("%Y%m%d", 8)):
+    for fmt, size in (("%Y%m%d%H%M", 12), ("%Y-%m-%d %H:%M", 16),
+                      ("%Y%m%d%H", 10), ("%Y%m%d", 8)):
         if len(text) >= size:
             try:
                 return datetime.strptime(text[:size], fmt).replace(tzinfo=KST)
