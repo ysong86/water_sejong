@@ -555,7 +555,6 @@ header.top .sub {
 }
 
 .spark, .gauge { width: 100%; max-width: 300px; height: auto; }
-.section { width: 100%; height: auto; display: block; }
 .gauge-none { color: var(--muted); font-size: 11px; }
 .bars { width: 100%; height: auto; }
 

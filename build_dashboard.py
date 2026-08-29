@@ -259,101 +259,6 @@ def _detail_head(name, sub, big, unit, color, tag=None) -> str:
             % (esc(name), tag_html, esc(sub), color, big, esc(unit)))
 
 
-def cross_section(entry) -> str:
-    """관측소 횡단면 모식도 위에 현재 수위와 홍수단계를 얹는다.
-
-    정직하게 짚어둘 것 — HRFCO 제원에는 하폭·제방고·하상 형상이 없다.
-    그래서 **하도 모양은 사다리꼴 모식**이고, **세로 척도(수위·각 단계·영점표고)만
-    실측**이다. 수면과 단계선의 높이 관계는 실제 그대로 읽어도 된다.
-    """
-    latest = entry.get("latest") or {}
-    level = latest.get("v")
-    stages = [(entry.get("attwl"), "관심", "var(--st-watch)"),
-              (entry.get("wrnwl"), "주의보", "var(--st-warning)"),
-              (entry.get("almwl"), "경보", "var(--st-alert)"),
-              (entry.get("srswl"), "심각", "var(--st-serious)")]
-    known = [v for v, _, _ in stages if v is not None]
-    if level is None and not known:
-        return '<div class="gauge-none">단면을 그릴 제원이 없습니다</div>'
-
-    W, H = 320, 196
-    pad_l, pad_r, pad_t, pad_b = 36, 40, 12, 24
-    top = max(known + [level or 0]) * 1.22 or 1.0
-    plot_h = H - pad_t - pad_b
-
-    def y_of(value):
-        return pad_t + (top - value) / top * plot_h
-
-    # 사다리꼴 하도 — 바닥 폭의 양끝과 제방 상단의 양끝
-    bed_l, bed_r = pad_l + 52, W - pad_r - 52
-    bank_l, bank_r = pad_l + 4, W - pad_r - 4
-
-    def x_left(value):
-        return bed_l + (bank_l - bed_l) * (value / top)
-
-    def x_right(value):
-        return bed_r + (bank_r - bed_r) * (value / top)
-
-    y_bed = y_of(0)
-    channel = ('<path d="M%.1f,%.1f L%.1f,%.1f L%.1f,%.1f L%.1f,%.1f" '
-               'fill="none" style="stroke:var(--map-city)" stroke-width="1.6" '
-               'stroke-linejoin="round"/>'
-               % (bank_l, pad_t, bed_l, y_bed, bed_r, y_bed, bank_r, pad_t))
-
-    water = ""
-    if level is not None:
-        color = STAGE_COLORS.get(entry.get("stage", "unknown"), NEUTRAL)
-        yl = y_of(level)
-        water = ('<path d="M%.1f,%.1f L%.1f,%.1f L%.1f,%.1f L%.1f,%.1f Z" '
-                 'style="fill:%s" opacity="0.30"/>'
-                 '<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" style="stroke:%s" '
-                 'stroke-width="2.2"/>'
-                 % (x_left(level), yl, bed_l, y_bed, bed_r, y_bed, x_right(level), yl,
-                    color, x_left(level), yl, x_right(level), yl, color))
-
-    lines = []
-    for value, label, color in stages:
-        if value is None or value > top:
-            continue
-        y = y_of(value)
-        lines.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" style="stroke:%s" '
-                     'stroke-width="1" stroke-dasharray="4 3" opacity="0.85"/>'
-                     '<text x="%.1f" y="%.1f" style="fill:%s" font-size="9.5" '
-                     'text-anchor="end">%s</text>'
-                     '<text x="%.1f" y="%.1f" style="fill:%s" font-size="9.5">%s</text>'
-                     % (pad_l, y, W - pad_r, y, color,
-                        pad_l - 4, y + 3.2, color, label,
-                        W - pad_r + 4, y + 3.2, color, fmt(value, 1)))
-
-    # 하상(영점) 기준선
-    lines.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" '
-                 'style="stroke:var(--line)" stroke-width="1"/>'
-                 '<text x="%.1f" y="%.1f" style="fill:var(--muted)" font-size="9.5" '
-                 'text-anchor="end">영점</text>'
-                 % (pad_l, y_bed, W - pad_r, y_bed, pad_l - 4, y_bed + 3.2))
-
-    marker = ""
-    if level is not None:
-        color = STAGE_COLORS.get(entry.get("stage", "unknown"), NEUTRAL)
-        marker = ('<text x="%.1f" y="%.1f" style="fill:%s" font-size="12" '
-                  'font-weight="700" text-anchor="middle">%s m</text>'
-                  % ((bed_l + bed_r) / 2, y_of(level) - 7, color, fmt(level, 2)))
-
-    datum = entry.get("gdt")
-    caption = ""
-    if datum is not None:
-        surface = ("· 수면표고 %s" % fmt(datum + level, 2, " EL.m")) if level is not None else ""
-        caption = ('<div class="note" style="margin:6px 0 0">영점표고 %s %s'
-                   '<br>하도 형상은 모식이며 세로 축(수위·단계)만 실측입니다.</div>'
-                   % (fmt(datum, 2, " EL.m"), surface))
-    else:
-        caption = ('<div class="note" style="margin:6px 0 0">'
-                   '하도 형상은 모식이며 세로 축(수위·단계)만 실측입니다.</div>')
-
-    return ('<svg class="section" viewBox="0 0 %d %d">%s%s%s%s</svg>%s'
-            % (W, H, channel, water, "".join(lines), marker, caption))
-
-
 def detail_waterlevel(entry: dict) -> str:
     latest = entry.get("latest") or {}
     color = STAGE_COLORS.get(entry.get("stage", "unknown"), NEUTRAL)
@@ -375,7 +280,6 @@ def detail_waterlevel(entry: dict) -> str:
     return (_detail_head(entry.get("name"), entry.get("addr") or "세종특별자치시",
                          fmt(latest.get("v"), 2), "m", color, entry.get("stage_label"))
             + '<div class="sect"><h4>홍수단계 대비</h4>%s</div>' % level_gauge(entry)
-            + '<div class="sect"><h4>관측소 단면</h4>%s</div>' % cross_section(entry)
             + '<div class="sect"><h4>최근 24시간 수위</h4>%s</div>'
               % sparkline(entry.get("series") or [], color, width=300, height=70)
             + "<dl>%s</dl>" % dl)
