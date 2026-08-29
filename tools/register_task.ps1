@@ -1,4 +1,4 @@
-# 상황판 자동 갱신 — Windows 작업 스케줄러 등록
+﻿# 상황판 자동 갱신 — Windows 작업 스케줄러 등록
 #
 #   powershell -ExecutionPolicy Bypass -File tools\register_task.ps1
 #   해제:  powershell -ExecutionPolicy Bypass -File tools\register_task.ps1 -Remove

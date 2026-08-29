@@ -297,8 +297,15 @@ def collect(key: str, cfg: dict) -> dict:
                 entry["delta_1h"] = (round(prior[-1] - prior[-1 - step], 3)
                                      if len(prior) > step else None)
             else:
-                values = [p["v"] for p in series if p["v"] is not None]
-                entry["sum_24h"] = round(sum(values), 1) if values else None
+                # 기간 조회는 양 끝을 모두 포함해 25개(=25시간)가 온다. 그대로 더하면
+                # 24시간 누적이 아니라 25시간 누적이 된다. 창을 정확히 24시간으로 자른다.
+                cutoff = (now_kst() - timedelta(hours=24)).strftime("%Y%m%d%H")
+                window = [p for p in series
+                          if p["v"] is not None and str(p["t"])[:10] > cutoff]
+                entry["window"] = ([window[0]["t"], window[-1]["t"]]
+                                   if window else None)
+                entry["sum_24h"] = (round(sum(p["v"] for p in window), 1)
+                                    if window else None)
             result[hydro].append(entry)
 
     if cfg.get("bo", True):

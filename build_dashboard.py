@@ -339,7 +339,10 @@ def detail_rainfall(entry: dict) -> str:
     total = entry.get("sum_24h")
     color = ACCENT if (total or 0) < 30 else WARN
     latest = entry.get("latest") or {}
-    rows = [("최근 관측", esc(hhmm(latest.get("t")))),
+    window = entry.get("window") or []
+    rows = [("누적 구간", "%s ~ %s" % (esc(hhmm(window[0])), esc(hhmm(window[1])))
+             if len(window) == 2 else "—"),
+            ("최근 관측", esc(hhmm(latest.get("t")))),
             ("최근 1시간", fmt(latest.get("v"), 1, " mm")),
             ("관측소 코드", esc(entry.get("code")))]
     dl = "".join("<dt>%s</dt><dd>%s</dd>" % (label, value) for label, value in rows)
@@ -811,6 +814,37 @@ VIEW_JS = r"""
 """
 
 
+AUTOREFRESH_JS = r"""
+(function(){
+  var MIN = %d;
+  if (!MIN) return;
+  var el = document.querySelector('header.top .sub');
+  var current = el ? el.textContent.trim() : '';
+
+  // 통째로 새로고침하지 않고, 갱신 시각이 바뀐 것을 확인했을 때만 다시 읽는다.
+  // GitHub Pages 가 max-age=600 을 보내므로 확인은 no-store, 재적재는 새 시각을
+  // 질의문자열에 실어 캐시를 확실히 비켜간다.
+  function check(){
+    if (document.hidden) return;
+    fetch(location.pathname + '?t=' + Date.now(), {cache: 'no-store'})
+      .then(function(r){ return r.ok ? r.text() : null; })
+      .then(function(html){
+        if (!html) return;
+        var m = html.match(/<span class="sub">([^<]*)<\/span>/);
+        if (m && m[1].trim() && m[1].trim() !== current) {
+          location.replace(location.pathname + '?v=' + encodeURIComponent(m[1].trim()));
+        }
+      })
+      .catch(function(){});
+  }
+  setInterval(check, MIN * 60000);
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) check();          // 탭으로 돌아오면 바로 확인
+  });
+})();
+"""
+
+
 def render_viewbar() -> str:
     chips = "".join(
         '<button type="button" class="vw on" data-view-toggle="%s" '
@@ -1138,7 +1172,8 @@ def render(data: dict) -> str:
         render_quality(nier), render_weather(kma), render_pollution(data),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
-        THEME_JS + VIEW_JS)
+        THEME_JS + VIEW_JS
+        + (AUTOREFRESH_JS % int((data.get("site") or {}).get("refresh_minutes", 5))))
 
 
 def write(data: dict, path: str = OUT_PATH) -> str:
