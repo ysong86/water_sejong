@@ -438,8 +438,15 @@ header.top .sub {
 .map .cityline { stroke: var(--map-city); }
 .map .dongname { fill: var(--map-label); }
 .map .rvlabel { fill: var(--river-label); }
-.map .legend { fill: var(--muted); }
-.map .legend polygon, .map .legend rect, .map .legend circle { fill: var(--muted); }
+.map .legend { fill: var(--fg-2); }
+.map .legend polygon, .map .legend circle { fill: var(--muted); }
+.map .legend rect { fill: var(--muted); }
+.map .legend .lg-bg, .map .scalebar .sb-bg {
+  fill: var(--panel); fill-opacity: .86; stroke: var(--line); stroke-width: 1;
+}
+.map .scalebar { fill: var(--fg-2); }
+.map .scalebar .sb-bar, .map .scalebar .sb-tick { fill: var(--fg-2); }
+.map .scalebar .sb-label { fill: var(--fg-2); font-weight: 600; }
 .map .footnote { fill: var(--muted); }
 .map .flood { display: none; }
 

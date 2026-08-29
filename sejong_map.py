@@ -347,15 +347,39 @@ def render(points, width=560, height=None) -> str:
     # 확대/이동 대상은 여기까지. 범례와 주석은 화면에 고정.
     zoomable = '<g class="zoom">%s</g>' % "".join(layers)
 
+    # 범례 — 우측 상단, 배경 판을 깔아 지도 라벨과 겹치지 않게
+    lg_w, lg_h = 78, 88
+    lg_x, lg_y = width - lg_w - 14, 14
     legend = (
-        '<g class="legend" transform="translate(14,22) scale(%.2f)" font-size="13.5" '
+        '<g class="legend" transform="translate(%.1f,%.1f)" font-size="13.5" '
         'style="pointer-events:none">'
-        '<polygon points="6,0 0,9 12,9"/><text x="21" y="9">수위</text>'
-        '<rect x="0" y="20" width="11" height="11" rx="1.5"/>'
-        '<text x="21" y="30">강수</text>'
-        '<circle cx="6" cy="47" r="6"/><text x="21" y="51">수질</text>'
-        '<polygon points="6,62 12,68 6,74 0,68"/>'
-        '<text x="21" y="72">지하수</text></g>' % scale)
+        '<rect class="lg-bg" x="-9" y="-9" width="%d" height="%d" rx="9"/>'
+        '<polygon points="7,2 0,13 14,13"/><text x="22" y="13">수위</text>'
+        '<rect x="1" y="23" width="12" height="12" rx="2"/><text x="22" y="34">강수</text>'
+        '<circle cx="7" cy="51" r="6.5"/><text x="22" y="55">수질</text>'
+        '<polygon points="7,66 14,73 7,80 0,73"/><text x="22" y="77">지하수</text>'
+        '</g>' % (lg_x, lg_y, lg_w, lg_h))
+
+    # 축척 — 확대하면 JS 가 길이와 숫자를 다시 계산한다.
+    # 1 SVG 단위 = (1/scale)도 위도 = 111320/scale 미터. 가로도 cos(위도)를 이미
+    # 반영해 두어 두 축의 거리 척도가 같다.
+    meters_per_unit = 111320.0 / projection.scale
+    bar_x, bar_y = width - 178, height - 42
+    scalebar = (
+        '<g class="scalebar" data-mpu="%.6f" data-x="%.1f" data-y="%.1f" '
+        'style="pointer-events:none">'
+        '<rect class="sb-bg" x="%.1f" y="%.1f" width="150" height="26" rx="7"/>'
+        '<text class="sb-label" x="%.1f" y="%.1f" font-size="11">—</text>'
+        '<rect class="sb-bar" x="%.1f" y="%.1f" width="60" height="4" rx="2"/>'
+        '<rect class="sb-tick" x="%.1f" y="%.1f" width="1.6" height="9" rx="0.8"/>'
+        '<rect class="sb-tick sb-tick2" x="%.1f" y="%.1f" width="1.6" height="9" rx="0.8"/>'
+        '</g>'
+        % (meters_per_unit, bar_x, bar_y,
+           bar_x - 8, bar_y - 8,                 # 배경
+           bar_x, bar_y + 2,                     # 라벨
+           bar_x, bar_y + 8,                     # 막대
+           bar_x, bar_y + 5.5,                   # 왼쪽 눈금
+           bar_x + 58.4, bar_y + 5.5))           # 오른쪽 눈금(JS 가 옮긴다)
 
     missing_layers = []
     if not admin:
@@ -371,4 +395,5 @@ def render(points, width=560, height=None) -> str:
                      '좌표 없는 %d개소는 왼쪽 목록에만 표시</text>' % (height - 28, missing))
 
     return ('<svg class="map" viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg">'
-            '%s%s%s%s</svg>' % (width, height, defs, zoomable, legend, footnote))
+            '%s%s%s%s%s</svg>'
+            % (width, height, defs, zoomable, legend, scalebar, footnote))

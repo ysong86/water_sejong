@@ -453,12 +453,39 @@ ZOOM_JS = r"""
 
   function clamp(){ k=Math.min(MAXK,Math.max(MINK,k));
     tx=Math.min(0,Math.max(W*(1-k),tx)); ty=Math.min(0,Math.max(H*(1-k),ty)); }
+  // 축척 — 확대 배율에 맞춰 '깔끔한 거리'(1/2/5 x 10^n)를 골라 막대 길이를 맞춘다.
+  var sb = svg.querySelector('.scalebar');
+  var sbBar = sb && sb.querySelector('.sb-bar');
+  var sbTick2 = sb && sb.querySelector('.sb-tick2');
+  var sbLabel = sb && sb.querySelector('.sb-label');
+  var MPU = sb ? parseFloat(sb.dataset.mpu) : 0;
+  var SB_MAX = 140;                      // 막대 최대 길이(SVG 단위)
+
+  function updateScale(){
+    if(!sb || !MPU) return;
+    var perUnit = MPU / k;               // 현재 배율에서 1 단위가 몇 m 인가
+    var nice = 1, best = 1;
+    for(var e=0; e<8; e++){
+      for(var i=0; i<3; i++){
+        var m = [1,2,5][i] * Math.pow(10, e);
+        if(m / perUnit <= SB_MAX) best = m;
+      }
+    }
+    nice = best;
+    var w = nice / perUnit;
+    var x0 = parseFloat(sb.dataset.x);
+    sbBar.setAttribute('width', w.toFixed(1));
+    sbTick2.setAttribute('x', (x0 + w - 1.6).toFixed(1));
+    sbLabel.textContent = nice >= 1000 ? (nice/1000) + ' km' : nice + ' m';
+  }
+
   function apply(){ clamp();
     g.setAttribute('transform','translate('+tx.toFixed(2)+','+ty.toFixed(2)+') scale('+k.toFixed(4)+')');
     var inv=(1/k).toFixed(4);
     svg.querySelectorAll('.cs').forEach(function(e){
       e.setAttribute('transform','translate('+e.dataset.x+','+e.dataset.y+') scale('+inv+')'); });
-    svg.classList.toggle('zoomed', k>1.01); }
+    svg.classList.toggle('zoomed', k>1.01);
+    updateScale(); }
   function toSvg(evt){ var m=svg.getScreenCTM(); if(!m) return null; m=m.inverse();
     return {x:evt.clientX*m.a+evt.clientY*m.c+m.e, y:evt.clientX*m.b+evt.clientY*m.d+m.f}; }
   function zoomAt(px,py,factor){ var nk=Math.min(MAXK,Math.max(MINK,k*factor));
