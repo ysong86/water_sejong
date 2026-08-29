@@ -72,7 +72,8 @@ def fetch_stations(key: str, hydro: str = "waterlevel") -> list[dict]:
     out = []
     for raw in _rows(payload):
         row = _lower(raw)
-        code = row.get("wlobscd") or row.get("rfobscd") or row.get("obscd")
+        code = (row.get("wlobscd") or row.get("rfobscd")
+                or row.get("boobscd") or row.get("obscd"))
         if not code:
             continue
         out.append({
@@ -89,6 +90,7 @@ def fetch_stations(key: str, hydro: str = "waterlevel") -> list[dict]:
             "almwl": to_float(row.get("almwl")),   # 경보
             "srswl": to_float(row.get("srswl")),   # 심각
             "pfh": to_float(row.get("pfh")),       # 계획홍수위
+            "spcwl": to_float(row.get("spcwl")),   # 보 관리수위
             "gdt": to_float(row.get("gdt")),       # 영점표고(EL.m) — 단면도 기준면
         })
     if not out:
@@ -158,6 +160,69 @@ def fetch_latest(key: str, code: str, hydro: str = "waterlevel") -> dict | None:
     return None
 
 
+def fetch_bo_series(key: str, code: str, hours: int = 24) -> list[dict]:
+    """보는 상류(swl)·하류(owl) 수위와 유입·방류량을 함께 준다."""
+    end = now_kst()
+    start = end - timedelta(hours=hours)
+    url = (f"{BASE}/{key}/bo/list/1H/{code}/"
+           f"{start.strftime('%Y%m%d%H')}/{end.strftime('%Y%m%d%H')}.json")
+    series = []
+    for raw in _rows(http_json(url)):
+        row = _lower(raw)
+        ymdhm = str(row.get("ymdhm") or "").strip()
+        if not ymdhm:
+            continue
+        series.append({"t": ymdhm, "v": to_float(row.get("swl")),
+                       "owl": to_float(row.get("owl")),
+                       "inf": to_float(row.get("inf")),
+                       "tototf": to_float(row.get("tototf"))})
+    series.sort(key=lambda p: p["t"])
+    return series
+
+
+def fetch_bo_latest(key: str, code: str) -> dict | None:
+    for raw in _rows(http_json(f"{BASE}/{key}/bo/list/10M/{code}.json")):
+        row = _lower(raw)
+        if not str(row.get("ymdhm") or "").strip():
+            continue
+        return {"t": str(row["ymdhm"]).strip(), "v": to_float(row.get("swl")),
+                "owl": to_float(row.get("owl")), "inf": to_float(row.get("inf")),
+                "tototf": to_float(row.get("tototf"))}
+    return None
+
+
+def collect_bo(key: str, cfg: dict) -> list[dict]:
+    """세종 구간 보(洑). 제원의 좌표가 실제와 어긋나 있어 지도에는 설정 좌표만 쓴다."""
+    include = cfg.get("bo_names") or ["세종보"]
+    try:
+        stations = [st for st in fetch_stations(key, "bo")
+                    if any(name in st["name"] for name in include)]
+    except CollectError:
+        return []
+
+    coords = cfg.get("bo_coords") or {}
+    out = []
+    for st in stations:
+        entry = dict(st)
+        pair = coords.get(st["name"]) or coords.get(st["code"])
+        # 제원 좌표는 신뢰하지 않는다(세종보가 부여 근처로 찍힌다).
+        entry["lat"], entry["lon"] = (None, None)
+        if pair and len(pair) == 2:
+            entry["lon"], entry["lat"] = float(pair[0]), float(pair[1])
+        try:
+            entry["series"] = fetch_bo_series(key, st["code"],
+                                              hours=int(cfg.get("hours", 24)))
+        except CollectError as exc:
+            entry["series"], entry["error"] = [], str(exc)
+        try:
+            entry["latest"] = fetch_bo_latest(key, st["code"])
+        except CollectError:
+            entry["latest"] = next((p for p in reversed(entry["series"])
+                                    if p.get("v") is not None), None)
+        out.append(entry)
+    return out
+
+
 def flood_stage(level, st: dict) -> tuple[str, str]:
     """현재 수위를 홍수 단계로 환산. (등급코드, 라벨)"""
     if level is None:
@@ -174,7 +239,7 @@ def flood_stage(level, st: dict) -> tuple[str, str]:
 def collect(key: str, cfg: dict) -> dict:
     """세종 구간 수위·강수 관측소 현황을 한 덩어리로 반환."""
     include = cfg.get("address_keywords") or ["세종"]
-    result = {"waterlevel": [], "rainfall": [], "errors": []}
+    result = {"waterlevel": [], "rainfall": [], "bo": [], "errors": []}
 
     for hydro, name_key in (("waterlevel", "waterlevel_stations"),
                             ("rainfall", "rainfall_stations")):
@@ -189,7 +254,13 @@ def collect(key: str, cfg: dict) -> dict:
                 f"{hydro}: '{'/'.join(include)}' 에 해당하는 관측소를 찾지 못했습니다.")
             continue
 
-        limit = int(cfg.get("max_stations", 8))
+        # 상한에 걸려 잘리면 화면엔 멀쩡해 보이는데 주요 지점이 빠진다.
+        # (예전 기본값 8 때문에 금남교·세종보 상/하가 통째로 누락됐다)
+        limit = int(cfg.get("max_stations", 40))
+        if len(stations) > limit:
+            result["errors"].append(
+                "%s: 조건에 맞는 관측소 %d곳 중 %d곳만 표시합니다(max_stations)."
+                % (hydro, len(stations), limit))
         for st in stations[:limit]:
             entry = dict(st)
             try:
@@ -223,5 +294,8 @@ def collect(key: str, cfg: dict) -> dict:
                 values = [p["v"] for p in series if p["v"] is not None]
                 entry["sum_24h"] = round(sum(values), 1) if values else None
             result[hydro].append(entry)
+
+    if cfg.get("bo", True):
+        result["bo"] = collect_bo(key, cfg)
 
     return result

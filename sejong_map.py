@@ -34,7 +34,7 @@ RIVER_STYLE = {
 HIT_WIDTH = 12.0        # 투명 히트영역 굵기(기준 폭 560 대비). 얇은 하천도 잡히게.
 
 KIND_SHAPE = {"waterlevel": "triangle", "rainfall": "square",
-              "quality": "circle", "groundwater": "diamond"}
+              "quality": "circle", "groundwater": "diamond", "weir": "bar"}
 
 # 라벨을 붙일 최소 면적(도²). 신도시 행정동은 너무 작아 글자가 겹친다.
 LABEL_MIN_AREA = 0.0012
@@ -206,6 +206,10 @@ def _shape(kind, color, size):
         return ('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="1.5" '
                 'style="fill:%s" stroke-width="1"/>'
                 % (-size * 0.8, -size * 0.8, size * 1.6, size * 1.6, color))
+    if kind == "bar":
+        return ('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="1" style="fill:%s" '
+                'stroke-width="1"/>'
+                % (-size * 1.15, -size * 0.45, size * 2.3, size * 0.9, color))
     if kind == "diamond":
         return ('<polygon points="0,%.1f %.1f,0 0,%.1f %.1f,0" style="fill:%s" '
                 'stroke-width="1"/>' % (-size, size, size, -size, color))
@@ -348,7 +352,7 @@ def render(points, width=560, height=None) -> str:
     zoomable = '<g class="zoom">%s</g>' % "".join(layers)
 
     # 범례 — 우측 상단, 배경 판을 깔아 지도 라벨과 겹치지 않게
-    lg_w, lg_h = 78, 88
+    lg_w, lg_h = 78, 106
     lg_x, lg_y = width - lg_w - 14, 14
     legend = (
         '<g class="legend" transform="translate(%.1f,%.1f)" font-size="13.5" '
@@ -358,6 +362,7 @@ def render(points, width=560, height=None) -> str:
         '<rect x="1" y="23" width="12" height="12" rx="2"/><text x="22" y="34">강수</text>'
         '<circle cx="7" cy="51" r="6.5"/><text x="22" y="55">수질</text>'
         '<polygon points="7,66 14,73 7,80 0,73"/><text x="22" y="77">지하수</text>'
+        '<rect x="0" y="90" width="14" height="6" rx="1"/><text x="22" y="97">보</text>'
         '</g>' % (lg_x, lg_y, lg_w, lg_h))
 
     # 축척 — 확대하면 JS 가 길이와 숫자를 다시 계산한다.

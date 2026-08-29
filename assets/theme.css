@@ -428,6 +428,7 @@ header.top .sub {
 }
 .pick .dot.sq { border-radius: 2px; }
 .pick .dot.dia { border-radius: 2px; transform: rotate(45deg); }
+.pick .dot.bar { border-radius: 1px; width: 13px; height: 5px; }
 .pick .nm {
   flex: 1; font-size: 12.5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

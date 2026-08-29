@@ -298,6 +298,43 @@ def bucket_hourly(series):
     return [{"t": key, "v": round(value, 1)} for key, value in sorted(buckets.items())]
 
 
+def detail_weir(entry: dict) -> str:
+    """보(洑) — 상·하류 수위와 유입·방류량."""
+    latest = entry.get("latest") or {}
+    color = ACCENT
+    upper, lower = latest.get("v"), latest.get("owl")
+    manage = entry.get("spcwl")
+
+    rows = [("관측시각", esc(hhmm(latest.get("t")))),
+            ("하류 수위", fmt(lower, 2, " m")),
+            ("상하류 수위차", fmt((upper - lower) if None not in (upper, lower) else None,
+                              2, " m")),
+            ("유입량", fmt(latest.get("inf"), 1, " ㎥/s")),
+            ("총 방류량", fmt(latest.get("tototf"), 1, " ㎥/s")),
+            ("관리수위", fmt(manage, 2, " m")),
+            ("관리기관", esc(entry.get("agency") or "—")),
+            ("시설 코드", esc(entry.get("code")))]
+    dl = "".join("<dt>%s</dt><dd>%s</dd>" % (label, value) for label, value in rows)
+
+    gauge = ""
+    if upper is not None and manage:
+        share = max(0.0, min(1.0, upper / manage)) * 100
+        gauge = ('<div class="sect"><h4>관리수위 대비</h4>'
+                 '<svg class="gauge" viewBox="0 0 260 20">'
+                 '<rect x="0" y="6" width="260" height="8" rx="4" '
+                 'style="fill:var(--panel-3)"/>'
+                 '<rect x="0" y="6" width="%.1f" height="8" rx="4" style="fill:%s"/>'
+                 '</svg><div class="note" style="margin:4px 0 0">상류 수위가 관리수위의 '
+                 '%.0f%%</div></div>' % (260 * share / 100, color, share))
+
+    return (_detail_head(entry.get("name"), "보(洑) · 상류 수위 기준",
+                         fmt(upper, 2), "m", color, "보")
+            + gauge
+            + '<div class="sect"><h4>최근 24시간 상류 수위</h4>%s</div>'
+              % sparkline(entry.get("series") or [], color, width=300, height=70)
+            + "<dl>%s</dl>" % dl)
+
+
 def detail_rainfall(entry: dict) -> str:
     total = entry.get("sum_24h")
     color = ACCENT if (total or 0) < 30 else WARN
@@ -379,6 +416,16 @@ def build_points(data: dict, cfg_coords: dict | None = None) -> list:
             "value": fmt(latest.get("v"), 2, " m"),
             "detail": detail_waterlevel(entry),
         })
+    for i, entry in enumerate(hrfco.get("bo") or []):
+        latest = entry.get("latest") or {}
+        points.append({
+            "id": "bo%d" % i, "kind": "weir", "group": "보",
+            "name": entry.get("name") or "(이름없음)",
+            "lat": entry.get("lat"), "lon": entry.get("lon"),
+            "color": ACCENT,
+            "value": fmt(latest.get("v"), 2, " m"),
+            "detail": detail_weir(entry),
+        })
     for i, entry in enumerate(hrfco.get("rainfall") or []):
         total = entry.get("sum_24h")
         points.append({
@@ -417,7 +464,7 @@ def build_points(data: dict, cfg_coords: dict | None = None) -> list:
 
 
 DOT_CLASS = {"waterlevel": "dot tri", "rainfall": "dot sq",
-             "quality": "dot", "groundwater": "dot dia"}
+             "quality": "dot", "groundwater": "dot dia", "weir": "dot bar"}
 
 
 def render_maptools(floods) -> str:
@@ -540,7 +587,7 @@ def render_explorer(points: list) -> str:
                 % (render_maptools(floods), sejong_map.render([])))
 
     listing = []
-    for group in ("하천 수위", "강수량", "수질", "지하수"):
+    for group in ("하천 수위", "보", "강수량", "수질", "지하수"):
         members = [p for p in points if p["group"] == group]
         if not members:
             continue
