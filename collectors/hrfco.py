@@ -224,7 +224,13 @@ def collect_bo(key: str, cfg: dict) -> list[dict]:
 
 
 def flood_stage(level, st: dict) -> tuple[str, str]:
-    """현재 수위를 홍수 단계로 환산. (등급코드, 라벨)"""
+    """현재 수위를 홍수 단계로 환산. (등급코드, 라벨)
+
+    HRFCO 가 주는 기준수위는 관심·주의보·경보·심각 넷뿐이고, 그 아래 구간에는
+    이름이 없다. '평상시' 같은 일상어를 붙이면 수문학 용어처럼 읽히므로
+    사실만 적는다 — 관심수위에 못 미친다는 뜻의 '관심 이하'.
+    (갈수위·저수위·평수위 같은 유황 구분은 이 API 로는 알 수 없다.)
+    """
     if level is None:
         return "unknown", "자료없음"
     steps = [("srswl", "serious", "심각"), ("almwl", "alert", "경보"),
@@ -233,7 +239,7 @@ def flood_stage(level, st: dict) -> tuple[str, str]:
         threshold = st.get(field)
         if threshold is not None and level >= threshold:
             return code, label
-    return "normal", "평상"
+    return "normal", "관심 이하"
 
 
 def collect(key: str, cfg: dict) -> dict:

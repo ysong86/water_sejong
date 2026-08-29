@@ -65,7 +65,7 @@ def build(hours: int = 24) -> dict:
             if latest["v"] >= threshold:
                 stage = label
                 break
-        labels = {"normal": "평상", "watch": "관심", "warning": "주의보",
+        labels = {"normal": "관심 이하", "watch": "관심", "warning": "주의보",
                   "alert": "경보", "serious": "심각"}
         waterlevel.append({
             "code": code, "name": name, "agency": "환경부",
