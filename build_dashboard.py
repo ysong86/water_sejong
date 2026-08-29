@@ -531,7 +531,7 @@ def render_explorer(points: list) -> str:
     if not points:
         # 관측지점이 없어도 행정구역·하천수계는 보여준다. 지도까지 사라지면
         # 화면이 통째로 비어 무엇이 잘못됐는지 알 수 없다.
-        return ('<div class="explorer nodata">'
+        return ('<div class="explorer nodata" data-view="explorer">'
                 '<section class="panel mapwrap"><h2>세종시 지도'
                 '<span class="src">행정구역 · 하천수계</span></h2>%s%s'
                 '<p class="note" style="margin:11px 0 0">관측지점이 없습니다. '
@@ -557,7 +557,7 @@ def render_explorer(points: list) -> str:
     details = {p["id"]: p["detail"] for p in points}
     payload = json.dumps(details, ensure_ascii=False).replace("</", "<\\/")
 
-    return ('<div class="explorer">'
+    return ('<div class="explorer" data-view="explorer">'
             '<section class="panel side"><h2>관측지점</h2>'
             '<p class="note">클릭하면 지도와 오른쪽 상세가 함께 바뀝니다.</p>%s</section>'
             '<section class="panel mapwrap"><h2>세종시 지도'
@@ -725,6 +725,52 @@ def _cadence_text(minutes) -> str:
     return "원 제공주기 %d분" % minutes
 
 
+# 화면에 켜고 끌 수 있는 블록. 선택은 브라우저에 기억된다.
+VIEW_SECTIONS = [
+    ("kpi", "요약 지표"),
+    ("fresh", "관측시각"),
+    ("explorer", "지점 탐색"),
+    ("quality", "수질 전 지점"),
+    ("weather", "기상"),
+]
+
+VIEW_JS = r"""
+(function(){
+  var KEY='sw-views';
+  var saved={};
+  try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+
+  function setOn(id,on){
+    document.querySelectorAll('[data-view="'+id+'"]').forEach(function(el){
+      el.style.display = on ? '' : 'none'; });
+    document.querySelectorAll('.vw[data-view-toggle="'+id+'"]').forEach(function(b){
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on)); });
+  }
+  document.querySelectorAll('.vw').forEach(function(b){
+    var id=b.dataset.viewToggle;
+    var on = saved[id] !== false;          // 저장값이 없으면 켜둔다
+    setOn(id, on);
+    b.addEventListener('click', function(){
+      var next = !b.classList.contains('on');
+      setOn(id, next);
+      saved[id]=next;
+      try{ localStorage.setItem(KEY, JSON.stringify(saved)); }catch(e){}
+      window.dispatchEvent(new Event('resize'));
+    });
+  });
+})();
+"""
+
+
+def render_viewbar() -> str:
+    chips = "".join(
+        '<button type="button" class="vw on" data-view-toggle="%s" '
+        'aria-pressed="true">%s</button>' % (key, esc(label))
+        for key, label in VIEW_SECTIONS)
+    return ('<div class="viewbar"><span class="vw-label">보기</span>%s</div>' % chips)
+
+
 def render_freshness(data: dict) -> str:
     chips = "".join(
         '<div class="fr" style="--c:%s" title="%s"><span class="l">%s</span>'
@@ -733,7 +779,8 @@ def render_freshness(data: dict) -> str:
            ("원 제공주기 %d분" % row["cadence"]) if row.get("cadence") else "",
            esc(row["label"]), esc(row["text"]), esc(row["age"]))
         for row in freshness(data))
-    return ('<div class="freshbar"><span class="fresh-title">관측시각</span>%s'
+    return ('<div class="freshbar" data-view="fresh">'
+            '<span class="fresh-title">관측시각</span>%s'
             '<span class="fresh-note">API 응답에 담긴 관측시각입니다(수집 시각 아님). '
             '하천·강수 10분, 지하수·기상 1시간, 수질은 월 1~2회 정기측정입니다.'
             '</span></div>' % chips)
@@ -950,14 +997,15 @@ def render(data: dict) -> str:
   %s
 </header>
 %s%s
-<div class="kpis">%s</div>
+%s
+<div class="kpis" data-view="kpi">%s</div>
 %s
 %s
 <div class="grid">
-  <section class="panel"><h2>실시간 수질 전 지점<span class="src">물환경정보시스템</span></h2>
+  <section class="panel" data-view="quality"><h2>실시간 수질 전 지점<span class="src">물환경정보시스템</span></h2>
     <p class="note">등급은 하천 생활환경기준(TOC) 기준으로 산출한 참고값입니다.</p>
     %s</section>
-  <section class="panel"><h2>기상<span class="src">기상청 단기예보</span></h2>
+  <section class="panel" data-view="weather"><h2>기상<span class="src">기상청 단기예보</span></h2>
     %s</section>
 </div>
 %s
@@ -972,13 +1020,13 @@ def render(data: dict) -> str:
   %s
 </footer>
 </div><script>%s</script></body></html>""" % (
-        THEME_BOOT, load_css(), FONT_LINK, banner, esc(generated), THEME_TOGGLE, demo_note, alerts, kpis,
+        THEME_BOOT, load_css(), FONT_LINK, banner, esc(generated), THEME_TOGGLE, demo_note, alerts, render_viewbar(), kpis,
         render_freshness(data),
         render_explorer(build_points(data)),
         render_quality(nier), render_weather(kma),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
-        THEME_JS)
+        THEME_JS + VIEW_JS)
 
 
 def write(data: dict, path: str = OUT_PATH) -> str:

@@ -237,6 +237,29 @@ header.top .sub {
   font-weight: 700;
 }
 
+/* --------------------------------------------------------------- 보기 선택 */
+
+.viewbar {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin-bottom: 14px;
+}
+.vw-label {
+  color: var(--muted); font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; margin-right: 3px;
+}
+.vw {
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 11.5px;
+  cursor: pointer; transition: all .14s ease; box-shadow: var(--shadow-1);
+}
+.vw:hover { color: var(--fg); border-color: var(--accent); }
+.vw.on {
+  background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent); font-weight: 700;
+}
+.vw::before { content: "☐ "; }
+.vw.on::before { content: "☑ "; }
+
 /* --------------------------------------------------------------- KPI */
 
 .kpis {
