@@ -90,8 +90,8 @@ def fetch_stations(key: str, hydro: str = "waterlevel") -> list[dict]:
             "lon": _coord(row.get("lon")),
             # 홍수 단계 수위(m). 수위관측소에만 존재.
             "attwl": to_float(row.get("attwl")),   # 관심
-            "wrnwl": to_float(row.get("wrnwl")),   # 주의보
-            "almwl": to_float(row.get("almwl")),   # 경보
+            "wrnwl": to_float(row.get("wrnwl")),   # 주의
+            "almwl": to_float(row.get("almwl")),   # 경계
             "srswl": to_float(row.get("srswl")),   # 심각
             "pfh": to_float(row.get("pfh")),       # 계획홍수위
             "spcwl": to_float(row.get("spcwl")),   # 보 관리수위
@@ -308,15 +308,17 @@ def fetch_flood_forecast(key: str) -> list[dict]:
 def flood_stage(level, st: dict) -> tuple[str, str]:
     """현재 수위를 홍수 단계로 환산. (등급코드, 라벨)
 
-    HRFCO 가 주는 기준수위는 관심·주의보·경보·심각 넷뿐이고, 그 아래 구간에는
+    HRFCO 가 주는 기준수위는 관심·주의·경계·심각 넷뿐이고, 그 아래 구간에는
     이름이 없다. '평상시' 같은 일상어를 붙이면 수문학 용어처럼 읽히므로
     사실만 적는다 — 관심수위에 못 미친다는 뜻의 '관심 이하'.
     (갈수위·저수위·평수위 같은 유황 구분은 이 API 로는 알 수 없다.)
     """
     if level is None:
         return "unknown", "자료없음"
-    steps = [("srswl", "serious", "심각"), ("almwl", "alert", "경보"),
-             ("wrnwl", "warning", "주의보"), ("attwl", "watch", "관심")]
+    # 재난 위기경보 4단계 이름을 쓴다. HRFCO 필드명은 wrnwl/almwl(주의보/경보)
+    # 이지만 공식 단계 표기는 관심·주의·경계·심각이다.
+    steps = [("srswl", "serious", "심각"), ("almwl", "alert", "경계"),
+             ("wrnwl", "warning", "주의"), ("attwl", "watch", "관심")]
     for field, code, label in steps:
         threshold = st.get(field)
         if threshold is not None and level >= threshold:

@@ -219,12 +219,12 @@ def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
 
 
 def level_gauge(entry) -> str:
-    """현재 수위를 관심/주의보/경보/심각 눈금 위에 얹은 가로 게이지."""
+    """현재 수위를 관심/주의/경계/심각 눈금 위에 얹은 가로 게이지."""
     latest = entry.get("latest") or {}
     level = latest.get("v")
     thresholds = [(entry.get("attwl"), "관심", "var(--st-watch)"),
-                  (entry.get("wrnwl"), "주의보", "var(--st-warning)"),
-                  (entry.get("almwl"), "경보", "var(--st-alert)"),
+                  (entry.get("wrnwl"), "주의", "var(--st-warning)"),
+                  (entry.get("almwl"), "경계", "var(--st-alert)"),
                   (entry.get("srswl"), "심각", "var(--st-serious)")]
     known = [t[0] for t in thresholds if t[0] is not None]
     if not known:
@@ -438,8 +438,8 @@ def enrich(data: dict) -> None:
 def stage_marks(entry: dict) -> list:
     """차트에 그릴 홍수단계 기준수위."""
     return [(entry.get("attwl"), "관심", "var(--st-watch)"),
-            (entry.get("wrnwl"), "주의보", "var(--st-warning)"),
-            (entry.get("almwl"), "경보", "var(--st-alert)"),
+            (entry.get("wrnwl"), "주의", "var(--st-warning)"),
+            (entry.get("almwl"), "경계", "var(--st-alert)"),
             (entry.get("srswl"), "심각", "var(--st-serious)")]
 
 
@@ -460,8 +460,8 @@ def detail_waterlevel(entry: dict) -> str:
             ("1시간 변화", delta_html),
             ("유량", fmt(latest.get("fw"), 1, " ㎥/s")),
             ("관심 수위", fmt(entry.get("attwl"), 2, " m")),
-            ("주의보 수위", fmt(entry.get("wrnwl"), 2, " m")),
-            ("경보 수위", fmt(entry.get("almwl"), 2, " m")),
+            ("주의 수위", fmt(entry.get("wrnwl"), 2, " m")),
+            ("경계 수위", fmt(entry.get("almwl"), 2, " m")),
             ("심각 수위", fmt(entry.get("srswl"), 2, " m")),
             ("관측소 코드", esc(entry.get("code")))]
     dl = "".join("<dt>%s</dt><dd>%s</dd>" % (label, value) for label, value in rows)

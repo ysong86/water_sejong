@@ -15,7 +15,7 @@ from .common import now_kst
 SEED = 20260828
 
 _WL_STATIONS = [
-    # 이름, 코드, 관심/주의보/경보/심각(m), 기준수위, 경도, 위도
+    # 이름, 코드, 관심/주의/경계/심각(m), 기준수위, 경도, 위도
     ("금남교(금강)", "3011665", 3.5, 5.0, 7.0, 8.5, 2.6, 127.2880, 36.4880),
     ("세종보(금강)", "3011660", 3.0, 4.5, 6.0, 7.5, 2.1, 127.2555, 36.5022),
     ("미호천교(미호강)", "3009665", 4.0, 6.0, 7.5, 9.0, 3.2, 127.3083, 36.5203),
@@ -65,8 +65,8 @@ def build(hours: int = 24) -> dict:
             if latest["v"] >= threshold:
                 stage = label
                 break
-        labels = {"normal": "관심 이하", "watch": "관심", "warning": "주의보",
-                  "alert": "경보", "serious": "심각"}
+        labels = {"normal": "관심 이하", "watch": "관심", "warning": "주의",
+                  "alert": "경계", "serious": "심각"}
         waterlevel.append({
             "code": code, "name": name, "agency": "환경부",
             "addr": "세종특별자치시", "lat": lat, "lon": lon,
