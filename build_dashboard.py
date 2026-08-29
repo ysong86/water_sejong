@@ -785,16 +785,24 @@ ZOOM_JS = r"""
     {passive:false});
   svg.addEventListener('dblclick', function(e){ var p=toSvg(e); if(p) zoomAt(p.x,p.y,1.7); });
 
+  // 포인터 캡처는 '실제로 끌기 시작한 뒤'에만 건다. pointerdown 에서 바로 잡으면
+  // 클릭이 마커가 아니라 SVG 로 가버려서 지점 선택이 먹지 않는다.
   svg.addEventListener('pointerdown', function(e){
-    if(e.button!==0) return; drag={x:e.clientX,y:e.clientY,tx:tx,ty:ty}; moved=0;
-    svg.setPointerCapture(e.pointerId); });
+    if(e.button!==0) return;
+    drag={x:e.clientX,y:e.clientY,tx:tx,ty:ty,captured:false}; moved=0; });
   svg.addEventListener('pointermove', function(e){ if(!drag) return;
     var rect=svg.getBoundingClientRect(); var per=W/(rect.width||1);
     var dx=(e.clientX-drag.x), dy=(e.clientY-drag.y);
     moved=Math.max(moved,Math.abs(dx)+Math.abs(dy));
+    if(moved<=4) return;                       // 손떨림은 끌기로 보지 않는다
+    if(!drag.captured){
+      drag.captured=true;
+      try{ svg.setPointerCapture(e.pointerId); }catch(_){}
+    }
     tx=drag.tx+dx*per; ty=drag.ty+dy*per; apply(); });
-  function endDrag(e){ if(!drag) return; drag=null;
-    try{ svg.releasePointerCapture(e.pointerId); }catch(_){} }
+  function endDrag(e){ if(!drag) return;
+    if(drag.captured){ try{ svg.releasePointerCapture(e.pointerId); }catch(_){} }
+    drag=null; }
   svg.addEventListener('pointerup', endDrag);
   svg.addEventListener('pointercancel', endDrag);
   svg.addEventListener('click', function(e){ if(moved>6){ e.stopPropagation(); moved=0; } }, true);
