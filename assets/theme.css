@@ -50,7 +50,7 @@
   --map-land: #ffffff;
   --map-line: rgba(16, 42, 70, 0.15);
   --map-city: rgba(16, 42, 70, 0.42);
-  --map-label: #7b8ea3;
+  --map-label: #4c6580;
   --map-halo: #ffffff;
   --river-main: #1a6ea8;
   --river-major: #2f8ec4;
@@ -104,7 +104,7 @@
   --map-land: #142339;
   --map-line: rgba(150, 185, 220, 0.16);
   --map-city: rgba(150, 185, 220, 0.48);
-  --map-label: #7d92a9;
+  --map-label: #9ab2ca;
   --map-halo: #08101d;
   --river-main: #3fbdf0;
   --river-major: #2b86c5;
@@ -364,7 +364,7 @@ header.top .sub {
 .explorer > .panel { padding: 15px 16px 17px; }
 /* 관측지점이 없을 때는 지도만 나오므로 전체 폭을 쓴다 */
 .explorer.nodata { grid-template-columns: 1fr; }
-.explorer.nodata .map { max-height: min(66vh, 620px); }
+.explorer.nodata .map { max-height: min(78vh, 820px); }
 
 .side { max-height: min(78vh, 760px); overflow-y: auto; scrollbar-width: thin; }
 .side h3 {
@@ -425,7 +425,7 @@ header.top .sub {
   width: 100%;
   height: auto;
   display: block;
-  max-height: min(72vh, 720px);
+  max-height: min(82vh, 900px);
   touch-action: none;
   cursor: grab;
   border-radius: var(--r);
@@ -458,7 +458,7 @@ header.top .sub {
 .map .rv[data-cls="stream"] .ln { stroke: var(--river-stream); }
 .map .rv:hover .ln { stroke-width: var(--wh); stroke: var(--river-hover); }
 .map .rv .rvname {
-  fill: var(--river-label); font-size: 11px; font-weight: 600;
+  fill: var(--river-label); font-size: 15px; font-weight: 700;
   opacity: 0; pointer-events: none;
   paint-order: stroke; stroke: var(--map-halo); stroke-width: 3.5px;
   stroke-linejoin: round;
@@ -476,7 +476,7 @@ header.top .sub {
 .map .mk:hover .halo, .map .mk:focus .halo { opacity: .22; }
 .map .mk.sel .halo { opacity: .3; }
 .map .mk .mkname {
-  fill: var(--fg); font-size: 11px; font-weight: 600;
+  fill: var(--fg); font-size: 15px; font-weight: 700;
   opacity: 0; pointer-events: none;
   paint-order: stroke; stroke: var(--map-halo); stroke-width: 3.5px;
   stroke-linejoin: round;
@@ -555,6 +555,7 @@ header.top .sub {
 }
 
 .spark, .gauge { width: 100%; max-width: 300px; height: auto; }
+.section { width: 100%; height: auto; display: block; }
 .gauge-none { color: var(--muted); font-size: 11px; }
 .bars { width: 100%; height: auto; }
 
@@ -664,7 +665,7 @@ footer {
   .explorer { grid-template-columns: 1fr; }
   .side { max-height: 320px; }
   .grid { grid-template-columns: 1fr; }
-  .map { max-height: 62vh; }
+  .map { max-height: 70vh; }
   .fresh-note { margin-left: 0; width: 100%; }
 }
 @media (max-width: 560px) {

@@ -27,8 +27,8 @@ FLOOD_DIR = os.path.join(BASE_DIR, "assets", "flood")
 FLOOD_INDEX = os.path.join(FLOOD_DIR, "index.json")
 
 RIVER_STYLE = {
-    "main":   {"w": 4.2, "hover": 6.4, "color": "#3b8ef0", "opacity": 0.95, "label": 11.0},
-    "major":  {"w": 2.6, "hover": 4.6, "color": "#2f7fd8", "opacity": 0.9, "label": 9.5},
+    "main":   {"w": 4.2, "hover": 6.4, "color": "#3b8ef0", "opacity": 0.95, "label": 17.5},
+    "major":  {"w": 2.6, "hover": 4.6, "color": "#2f7fd8", "opacity": 0.9, "label": 15.0},
     "stream": {"w": 1.1, "hover": 3.0, "color": "#2a5f96", "opacity": 0.75, "label": 0},
 }
 HIT_WIDTH = 12.0        # 투명 히트영역 굵기(기준 폭 560 대비). 얇은 하천도 잡히게.
@@ -229,8 +229,8 @@ def render(points, width=560, height=None) -> str:
         # 자료 종횡비에 맞춰 높이를 잡는다. 고정하면 좌우에 빈 띠가 남는다.
         k = math.cos(math.radians((lat0 + lat1) / 2))
         ratio = (lat1 - lat0) / max((lon1 - lon0) * k, 1e-6)
-        height = int(round(width * ratio)) + 34      # 하단 주석 줄 여유
-    projection = Projection(lon0, lat0, lon1, lat1, width, height - 34, pad=16)
+        height = int(round(width * ratio)) + 42      # 하단 주석 줄 여유
+    projection = Projection(lon0, lat0, lon1, lat1, width, height - 42, pad=16)
     scale = width / 560.0
     outline = (admin or {}).get("outline") or []
 
@@ -313,9 +313,9 @@ def render(points, width=560, height=None) -> str:
         layers.append('<g class="rvlabel" style="pointer-events:none">%s</g>'
                       % "".join(river_labels))
     if dong_labels:
-        layers.append('<g class="dongname" font-size="%.1f" '
+        layers.append('<g class="dongname" font-size="%.1f" font-weight="600" '
                       'style="pointer-events:none">%s</g>'
-                      % (9 * scale, "".join(dong_labels)))
+                      % (14.5 * scale, "".join(dong_labels)))
 
     # 6) 관측지점 마커
     markers, missing = [], 0
@@ -348,14 +348,14 @@ def render(points, width=560, height=None) -> str:
     zoomable = '<g class="zoom">%s</g>' % "".join(layers)
 
     legend = (
-        '<g class="legend" transform="translate(14,18)" font-size="10" '
+        '<g class="legend" transform="translate(14,22) scale(%.2f)" font-size="13.5" '
         'style="pointer-events:none">'
-        '<polygon points="6,0 0,9 12,9"/><text x="19" y="9">수위</text>'
+        '<polygon points="6,0 0,9 12,9"/><text x="21" y="9">수위</text>'
         '<rect x="0" y="20" width="11" height="11" rx="1.5"/>'
-        '<text x="19" y="30">강수</text>'
-        '<circle cx="6" cy="47" r="6"/><text x="19" y="51">수질</text>'
+        '<text x="21" y="30">강수</text>'
+        '<circle cx="6" cy="47" r="6"/><text x="21" y="51">수질</text>'
         '<polygon points="6,62 12,68 6,74 0,68"/>'
-        '<text x="19" y="72">지하수</text></g>')
+        '<text x="21" y="72">지하수</text></g>' % scale)
 
     missing_layers = []
     if not admin:
@@ -364,8 +364,8 @@ def render(points, width=560, height=None) -> str:
         missing_layers.append("하천수계(assets/sejong_rivers.json)")
     note = ("누락된 자산: " + ", ".join(missing_layers) if missing_layers
             else "행정구역·하천수계·관측지점 모두 실제 좌표 · 하천망 © OpenStreetMap")
-    footnote = ('<text class="footnote" x="14" y="%d" font-size="10">%s</text>'
-                % (height - 12, note))
+    footnote = ('<text class="footnote" x="14" y="%d" font-size="%.1f">%s</text>'
+                % (height - 13, 12.5 * scale, note))
     if missing:
         footnote += ('<text x="14" y="%d" fill="#8b949e" font-size="10">'
                      '좌표 없는 %d개소는 왼쪽 목록에만 표시</text>' % (height - 28, missing))

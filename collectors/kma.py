@@ -87,7 +87,9 @@ def fetch_now(key: str, nx: int, ny: int) -> dict:
     }))
     values = {i.get("category"): i.get("obsrValue") for i in _items(payload)}
     return {
-        "base": f"{base_date} {base_time[:2]}:00",
+        # 상황판의 관측시각 파서가 읽는 형식으로 맞춘다("2026-08-29 11:00").
+        "base": "%s-%s-%s %s:00" % (base_date[:4], base_date[4:6], base_date[6:8],
+                                    base_time[:2]),
         "temp": to_float(values.get("T1H")),
         "rain_1h": to_float(values.get("RN1"), 0.0),
         "humidity": to_float(values.get("REH")),
@@ -124,7 +126,9 @@ def fetch_forecast(key: str, nx: int, ny: int, hours: int = 24) -> dict:
     ordered = [slots[k] for k in sorted(slots)][:hours]
     rain_total = round(sum(s.get("pcp") or 0.0 for s in ordered), 1)
     return {
-        "base": f"{base_date} {base_time[:2]}:00",
+        # 상황판의 관측시각 파서가 읽는 형식으로 맞춘다("2026-08-29 11:00").
+        "base": "%s-%s-%s %s:00" % (base_date[:4], base_date[4:6], base_date[6:8],
+                                    base_time[:2]),
         "slots": ordered,
         "rain_sum": rain_total,
         "pop_max": max((s.get("pop") or 0 for s in ordered), default=0),
@@ -171,5 +175,13 @@ def collect(key: str, cfg: dict) -> dict:
         try:
             result["warnings"] = fetch_warnings(key, str(cfg.get("stn_id", "133")))
         except CollectError as exc:
-            result["errors"].append(f"기상특보(선택): {exc}")
+            # 특보는 단기예보와 다른 서비스라 활용신청이 따로 필요하다.
+            # 403 이면 키가 틀린 게 아니라 그 서비스에 권한이 없다는 뜻이다.
+            if "403" in str(exc):
+                result["errors"].append(
+                    "기상특보(선택): 이 인증키에 권한이 없습니다. 공공데이터포털에서 "
+                    "'기상청_기상특보 조회서비스'를 따로 활용신청하거나, "
+                    "config 의 kma.warnings 를 false 로 두면 이 줄이 사라집니다.")
+            else:
+                result["errors"].append("기상특보(선택): %s" % exc)
     return result

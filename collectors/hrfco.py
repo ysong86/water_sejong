@@ -89,6 +89,7 @@ def fetch_stations(key: str, hydro: str = "waterlevel") -> list[dict]:
             "almwl": to_float(row.get("almwl")),   # 경보
             "srswl": to_float(row.get("srswl")),   # 심각
             "pfh": to_float(row.get("pfh")),       # 계획홍수위
+            "gdt": to_float(row.get("gdt")),       # 영점표고(EL.m) — 단면도 기준면
         })
     if not out:
         raise CollectError(f"{hydro} 관측소 제원을 받지 못했습니다. 인증키를 확인해주세요.")
