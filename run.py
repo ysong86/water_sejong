@@ -16,6 +16,14 @@ import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# 윈도우 콘솔은 기본이 cp949 라 API 오류 메시지에 섞인 문자(—, ℃ 등)에서
+# UnicodeEncodeError 로 죽는다. 출력만 UTF-8 로 고정하고 못 쓰는 글자는 대체한다.
+for stream in (sys.stdout, sys.stderr):
+    try:
+        stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 import build_dashboard
 from collectors import demo, gims, hrfco, kma, nier
 from collectors.common import (BASE_DIR, CollectError, load_config, load_json,

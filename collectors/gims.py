@@ -24,12 +24,14 @@ from datetime import timedelta
 from .common import CollectError, http_json, now_kst, to_float
 
 # 타진 후보. 앞쪽이 공공데이터포털(한국수자원공사), 뒤쪽이 GIMS 자체 API.
+# 타진 결과(2026-08-29): GIMS 자체 API 두 곳만 실제로 응답했다(INVALID_KEY 반환 =
+# 주소는 살아 있고 키만 다름). 포털 후보들은 400 이라 주소 자체가 틀렸다.
+# 그래서 GIMS 를 앞에 둔다. natn=국가관측망, assi=보조(지자체)관측망.
 CANDIDATES = [
-    "https://apis.data.go.kr/B500001/GroundWaterMeasureInfoService/getGroundWaterMeasureInfo",
-    "https://apis.data.go.kr/B500001/nationalGroundWaterMeasureInfo/getNationalGroundWaterMeasureInfo",
-    "https://apis.data.go.kr/B500001/gwLevelService/getGwLevelList",
     "http://www.gims.go.kr/api/natnObsvHourData",
     "http://www.gims.go.kr/api/assiObsvHourData",
+    "https://apis.data.go.kr/B500001/GroundWaterMeasureInfoService/getGroundWaterMeasureInfo",
+    "https://apis.data.go.kr/B500001/gwLevelService/getGwLevelList",
 ]
 
 FIELD_ALIASES = {
