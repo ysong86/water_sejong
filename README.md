@@ -61,29 +61,49 @@ C:/Python313/python.exe run.py --collect --open
 
 ## 배포 — 다른 사람이 보게 하기
 
-산출물이 정적 HTML 한 장이라 **GitHub Actions + GitHub Pages** 가 가장 손이 덜 간다.
-내 PC 가 꺼져 있어도 **10분마다** 갱신된다(하천 수위 주기에 맞춤).
-GitHub 의 예약 실행은 부하에 따라 몇 분 늦을 수 있어 보장 주기는 아니다.
+**수집·생성은 이 PC 에서, GitHub 은 서빙만 한다.**
 
-1. 이 폴더를 GitHub 저장소로 올린다. `.gitignore` 가 `config.json` 을 빼주므로
-   **인증키는 올라가지 않는다**(반드시 확인할 것).
-2. 저장소 Settings → Secrets and variables → Actions 에 키를 넣는다:
-   `HRFCO_KEY` `KMA_KEY` `NIER_KEY` `GIMS_KEY` (있는 것만 넣어도 된다)
-3. Settings → Pages → Source 를 **GitHub Actions** 로 바꾼다.
-4. Actions 탭에서 `상황판 갱신·배포` 를 한 번 수동 실행(Run workflow)한다.
-   실행 요약에 소스별 수집 결과가 표로 남으므로 무엇이 붙고 무엇이 안 붙는지 바로 보인다.
+처음엔 GitHub Actions 로 전부 돌리려 했으나 **한강홍수통제소 API 가 해외 IP 에
+응답하지 않는다**(거부가 아니라 타임아웃). GitHub 러너는 해외에 있어 수위·강수를
+못 받는다. 같은 키가 국내 PC 에서는 정상 작동한다. 그래서 구조를 이렇게 바꿨다.
 
-키는 `config.json` 없이도 **환경변수로 주입**된다. 저장소에는 키 없는
-`config.public.json`(관측소 목록·좌표 등 공개 설정)만 두면 되고, CI 는 이걸 읽고
-Secrets 를 덮어쓴다. 로컬에서는 `config.json` 이 있으면 그쪽이 우선이다.
+```
+이 PC (국내 IP)                          GitHub
+  run.py --collect  ── API 호출 ─┐
+  build_dashboard   ── HTML 생성 ─┴─► gh-pages 브랜치 ─► Pages 가 서빙
+```
 
-주의할 점
+### 한 번만 하는 설정
 
-- GitHub Pages 는 **공개**다. 특정인만 보게 하려면 Cloudflare Pages + Access 를 쓴다.
-- 공공 API 가 해외 IP를 막는 경우가 드물게 있다. 첫 수동 실행에서 4개 소스가
-  다 붙는지 반드시 확인할 것. 막히는 소스가 있으면 그 소스만 로컬 스케줄러로 돌려
-  결과 JSON을 커밋하는 식으로 우회할 수 있다.
-- 갱신 주기는 `.github/workflows/update.yml` 의 cron 에서 바꾼다.
+1. GitHub 저장소 Settings → Pages → Source 를 **`Deploy from a branch`**,
+   Branch 를 **`gh-pages` / `(root)`** 로 지정한다.
+2. 자동 실행 등록:
+
+```bash
+powershell -ExecutionPolicy Bypass -File tools
+egister_task.ps1
+```
+
+10분 간격으로 `tools\publish.ps1` 이 돈다. 해제는 `-Remove` 를 붙인다.
+
+### 수동 배포
+
+```bash
+powershell -ExecutionPolicy Bypass -File tools\publish.ps1
+```
+
+수집 → `site\index.html` 생성 → `gh-pages` 브랜치로 force push 까지 한 번에 한다.
+gh-pages 에는 **커밋 하나만** 두고 매번 덮어쓴다(amend). 매 실행마다 커밋을 쌓으면
+37KB × 하루 144회 = 한 달 160MB 로 불어나기 때문이다.
+
+### 한계
+
+- **이 PC 가 켜져 있어야 갱신된다.** 클라우드로 옮길 수 없는 이유는 위와 같다.
+  꺼져 있어도 사이트는 계속 열리며, 마지막 관측시각이 화면에 그대로 표시되므로
+  자료가 오래됐다는 사실은 보는 사람이 알 수 있다.
+- 노트북이면 절전 상태에서 작업이 밀린다. 작업 스케줄러에 `StartWhenAvailable`
+  을 켜 두었으므로 깨어나면 곧바로 한 번 돈다.
+- 인증키는 `config.json` 에만 있고 저장소에 올라가지 않는다.
 
 ### 방문자 수 (투데이 / 토탈)
 
@@ -245,9 +265,10 @@ sejong_water/
     make_rivers.py       OSM Overpass → 하천수계 자산
     make_flood.py        범람도 GeoJSON → 오버레이 레이어 등록
     counter-worker.js    방문자 카운터 (Cloudflare Workers + KV)
+    publish.ps1          수집 → 생성 → gh-pages 배포
+    register_task.ps1    10분 간격 자동 실행 등록/해제
   config.json            인증키 (직접 생성, 커밋 금지)
   config.public.json     키 없는 공개 설정 (커밋해도 되는 파일)
-  .github/workflows/     GitHub Actions 갱신·배포
   assets/                지도 자산
   data/latest.json       마지막 수집 결과
   dashboard.html         생성물

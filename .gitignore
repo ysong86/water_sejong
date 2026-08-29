@@ -13,3 +13,6 @@ __pycache__/
 # 작업 중 파일
 _*.html
 _*.geojson
+
+# gh-pages 배포용 워크트리
+.ghpages/
