@@ -637,7 +637,7 @@ def render_weather(kma: dict) -> str:
 # 기준은 제공주기의 3배 남짓 — 한두 번 걸러도 경고가 뜨지 않게.
 SOURCE_CADENCE = {"waterlevel": 10, "rainfall": 10, "quality": 30 * 1440,
                   "groundwater": 60, "weather": 60}
-STALE_LIMIT = {"waterlevel": 30, "rainfall": 30, "quality": 60 * 1440,
+STALE_LIMIT = {"waterlevel": 30, "rainfall": 30, "quality": 75 * 1440,
                "groundwater": 240, "weather": 120}
 
 
@@ -693,14 +693,14 @@ def freshness(data: dict) -> list:
             continue
         if not observed:
             out.append({"label": label, "text": "시각미상", "age": "%d개소" % count,
-                        "color": "#d29922"})
+                        "color": "var(--st-watch)"})
             continue
         minutes = max(0, int((now - observed).total_seconds() // 60))
         limit = STALE_LIMIT.get(key, 120)
         if minutes <= limit:
-            color = "#3fb950"
+            color = "var(--st-normal)"
         elif minutes <= limit * 3:
-            color = "#d29922"
+            color = "var(--st-watch)"
         else:
             color = WARN
         if minutes < 120:
@@ -783,7 +783,8 @@ def render_freshness(data: dict) -> str:
     return ('<div class="freshbar" data-view="fresh">'
             '<span class="fresh-title">관측시각</span>%s'
             '<span class="fresh-note">API 응답에 담긴 관측시각입니다(수집 시각 아님). '
-            '하천·강수 10분, 지하수·기상 1시간, 수질은 월 1~2회 정기측정입니다.'
+            '하천·강수 10분, 기상·지하수 1시간. 수질은 월 1~2회 측정이고 '
+            '공개 API 공표가 두 달가량 늦습니다.'
             '</span></div>' % chips)
 
 

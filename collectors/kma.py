@@ -53,11 +53,16 @@ def _check(payload):
     return payload
 
 
-def _ncst_base(dt):
-    """초단기실황은 매시 정시 자료가 +40분경 배포된다."""
-    if dt.minute < 45:
-        dt = dt - timedelta(hours=1)
-    return dt.strftime("%Y%m%d"), dt.strftime("%H00")
+def _ncst_bases(dt, back=3):
+    """시도할 기준시각 목록 — 최신부터.
+
+    안내문은 정시 자료가 +40분경 배포된다고 하지만 실제로는 훨씬 일찍 나온다
+    (12:26 에 12:00 자료 확인). 그래서 무조건 한 시간 물러서지 않고 최신부터
+    시도해 값이 없을 때만 뒤로 간다. 예전엔 이 때문에 84분 지난 값을 보여줬다.
+    """
+    top = dt.replace(minute=0, second=0, microsecond=0)
+    return [((top - timedelta(hours=i)).strftime("%Y%m%d"),
+             (top - timedelta(hours=i)).strftime("%H00")) for i in range(back)]
 
 
 def _vilage_base(dt):
@@ -79,13 +84,23 @@ def _pcp(text):
 
 
 def fetch_now(key: str, nx: int, ny: int) -> dict:
-    base_date, base_time = _ncst_base(now_kst())
-    payload = _check(http_json(f"{FCST_BASE}/getUltraSrtNcst", {
-        "serviceKey": _service_key(key), "pageNo": 1, "numOfRows": 100,
-        "dataType": "JSON", "base_date": base_date, "base_time": base_time,
-        "nx": nx, "ny": ny,
-    }))
-    values = {i.get("category"): i.get("obsrValue") for i in _items(payload)}
+    values, base_date, base_time = {}, None, None
+    last_error = None
+    for base_date, base_time in _ncst_bases(now_kst()):
+        try:
+            payload = _check(http_json(f"{FCST_BASE}/getUltraSrtNcst", {
+                "serviceKey": _service_key(key), "pageNo": 1, "numOfRows": 100,
+                "dataType": "JSON", "base_date": base_date, "base_time": base_time,
+                "nx": nx, "ny": ny,
+            }))
+        except CollectError as exc:
+            last_error = exc
+            continue
+        values = {i.get("category"): i.get("obsrValue") for i in _items(payload)}
+        if values.get("T1H") is not None:
+            break
+    if not values:
+        raise last_error or CollectError("초단기실황 응답이 비어 있습니다.")
     return {
         # 상황판의 관측시각 파서가 읽는 형식으로 맞춘다("2026-08-29 11:00").
         "base": "%s-%s-%s %s:00" % (base_date[:4], base_date[4:6], base_date[6:8],
