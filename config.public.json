@@ -15,15 +15,24 @@
   },
   "nier": {
     "_발급": "https://www.data.go.kr → '국립환경과학원 수질' 검색 → 활용신청 → 일반 인증키",
-    "_안내": "endpoint 를 비워두면 후보를 자동 타진합니다. python run.py --probe 로 확정하세요.",
+    "_안내": "수질측정망 정기측정(월 1~2회). point_codes 를 비우면 그 해 전국 자료를 훑어 주소가 '세종'인 지점을 자동으로 찾아낸다. 좌표는 API 가 도분초로 주므로 point_coords 는 보정용이다.",
     "key": "",
-    "endpoint": "",
-    "point_codes": [],
-    "name_keywords": [
-      "세종",
-      "금강",
-      "미호",
-      "대청"
+    "endpoint": "https://apis.data.go.kr/1480523/WaterQualityService/getWaterMeasuringList",
+    "point_codes": [
+      "3010A15",
+      "3010A20",
+      "3010A30",
+      "3011A84",
+      "3011A85",
+      "3011A87",
+      "3011A90",
+      "3011A97",
+      "3011D65",
+      "3011E40",
+      "3012A05",
+      "3012A10",
+      "3012A15",
+      "3012A17"
     ],
     "extra_params": {},
     "_좌표": "실시간 수질 API 는 좌표를 안 주는 경우가 많다. 지도에 찍으려면 지점명(또는 코드) → [경도, 위도] 로 넣어라.",
@@ -32,7 +41,10 @@
         127.287,
         36.498
       ]
-    }
+    },
+    "address_keywords": [
+      "세종"
+    ]
   },
   "kma": {
     "_발급": "https://www.data.go.kr → '기상청 단기예보 조회서비스' → 활용신청",
@@ -78,11 +90,13 @@
   "site": {
     "_카운터": "provider: none | goatcounter | custom. custom 워커는 기본이 hits(모든 방문=조회수). 순방문자로 바꾸려면 워커 COUNT_MODE=unique + label='방문자 수'.",
     "counter": {
-      "provider": "none",
-      "code": "",
-      "path": "/",
+      "provider": "hits",
+      "target": "ysong86.github.io/water_sejong",
+      "label": "조회수",
+      "_다른방법": "정확한 투데이/토탈을 원하면 tools/counter-worker.js 를 띄우고 provider 를 custom, url 을 워커 주소로.",
       "url": "",
-      "label": "조회수"
+      "code": "",
+      "path": "/"
     },
     "contact": {
       "org": "세종연구원",

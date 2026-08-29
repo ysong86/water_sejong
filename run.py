@@ -183,6 +183,11 @@ def main(argv=None) -> int:
         if not data:
             print("data/latest.json 이 없습니다. 먼저 --collect 또는 --demo 를 실행해주세요.")
             return 1
+        # 표시 설정(문의처·조회수 등)은 수집 시점에 얼려두지 않고 매번 다시 읽는다.
+        try:
+            data["site"] = (load_config(args.config) or {}).get("site") or {}
+        except CollectError:
+            pass
 
     path = build_dashboard.write(data)
     if args.out:

@@ -636,6 +636,8 @@ footer {
   margin-top: 10px; color: var(--muted); font-size: 11.5px;
 }
 .visitors .vk { color: var(--fg-2); font-weight: 700; margin-right: 4px; }
+.visitors .hitsbadge { height: 20px; vertical-align: middle; border-radius: 3px; }
+.visitors .vsub { color: var(--muted); font-size: 11px; }
 .visitors b {
   color: var(--fg); font-variant-numeric: tabular-nums;
   font-size: 13.5px; font-weight: 700;

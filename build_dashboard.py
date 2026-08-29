@@ -9,6 +9,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import urllib.parse
 from datetime import datetime
 
 import sejong_map
@@ -607,9 +608,9 @@ def render_weather(kma: dict) -> str:
 
 # 소스별 원 제공주기(분)와, 이 정도 지나면 오래된 자료로 볼 기준(분).
 # 기준은 제공주기의 3배 남짓 — 한두 번 걸러도 경고가 뜨지 않게.
-SOURCE_CADENCE = {"waterlevel": 10, "rainfall": 10, "quality": 60,
+SOURCE_CADENCE = {"waterlevel": 10, "rainfall": 10, "quality": 30 * 1440,
                   "groundwater": 60, "weather": 60}
-STALE_LIMIT = {"waterlevel": 30, "rainfall": 30, "quality": 180,
+STALE_LIMIT = {"waterlevel": 30, "rainfall": 30, "quality": 60 * 1440,
                "groundwater": 240, "weather": 120}
 
 
@@ -675,11 +676,26 @@ def freshness(data: dict) -> list:
             color = "#d29922"
         else:
             color = WARN
-        age = ("%d분 전" % minutes) if minutes < 120 else ("%.1f시간 전" % (minutes / 60))
+        if minutes < 120:
+            age = "%d분 전" % minutes
+        elif minutes < 48 * 60:
+            age = "%.1f시간 전" % (minutes / 60)
+        else:
+            age = "%d일 전" % (minutes // 1440)
         out.append({"label": label, "text": hhmm(observed.strftime("%Y%m%d%H%M")),
                     "age": "%s · %d개소" % (age, count), "color": color,
                     "cadence": SOURCE_CADENCE.get(key)})
     return out
+
+
+def _cadence_text(minutes) -> str:
+    if not minutes:
+        return ""
+    if minutes >= 1440:
+        return "원 제공주기 약 %d일" % (minutes // 1440)
+    if minutes >= 60:
+        return "원 제공주기 %d시간" % (minutes // 60)
+    return "원 제공주기 %d분" % minutes
 
 
 def render_freshness(data: dict) -> str:
@@ -692,8 +708,8 @@ def render_freshness(data: dict) -> str:
         for row in freshness(data))
     return ('<div class="freshbar"><span class="fresh-title">관측시각</span>%s'
             '<span class="fresh-note">API 응답에 담긴 관측시각입니다(수집 시각 아님). '
-            '하천·강수 10분, 수질·지하수·기상 1시간 주기로 갱신됩니다.</span></div>'
-            % chips)
+            '하천·강수 10분, 지하수·기상 1시간, 수질은 월 1~2회 정기측정입니다.'
+            '</span></div>' % chips)
 
 
 COUNTER_JS = r"""
@@ -750,13 +766,38 @@ def render_contact(site: dict) -> str:
 
 
 def render_counter(site: dict) -> str:
+    """하단 조회수.
+
+    정적 페이지는 스스로 셀 수 없어 세어 주는 곳이 필요하다. provider 로 고른다.
+      hits        — hits.sh 배지. 가입이 필요 없어 바로 뜬다. CORS 가 없어
+                    숫자만 뽑아 우리 서체로 다시 그릴 수는 없고 이미지로 박는다.
+                    새로고침마다 올라가므로 방문자 수가 아니라 조회수다.
+      custom      — 직접 띄운 집계기(tools/counter-worker.js)가 {today,total} 반환.
+                    투데이/토탈을 정확히 통제하고 싶을 때.
+      goatcounter — GoatCounter 계정 사용.
+      none        — 표시하지 않음.
+    """
     counter = (site or {}).get("counter") or {}
     provider = counter.get("provider", "none")
     if provider in ("", "none"):
         return ""
+
+    label = counter.get("label") or "조회수"
+
+    if provider == "hits":
+        target = (counter.get("target") or "").strip()
+        if not target:
+            return ""
+        src = ("https://hits.sh/%s.svg?view=today-total&style=flat-square"
+               "&label=%s&color=0ea5e9&labelColor=64748b"
+               % (urllib.parse.quote(target, safe="/"),
+                  urllib.parse.quote(label)))
+        return ('<div class="visitors"><img class="hitsbadge" src="%s" '
+                'alt="%s 오늘/전체" height="20" loading="lazy">'
+                '<span class="vsub">오늘 / 전체</span></div>' % (esc(src), esc(label)))
+
     payload = json.dumps({k: v for k, v in counter.items() if k != "provider"}
                          | {"provider": provider}, ensure_ascii=False)
-    label = counter.get("label") or "조회수"
     return ('<div class="visitors" id="visitors" data-counter=%s>'
             '<span class="vk">%s</span>'
             '<span>오늘</span><b id="cnt-today">…</b>'
