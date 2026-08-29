@@ -586,6 +586,21 @@ header.top .sub {
 }
 
 .spark, .gauge { width: 100%; max-width: 300px; height: auto; }
+
+/* 축·눈금이 있는 선그래프 */
+.chart { width: 100%; height: auto; display: block; overflow: visible; }
+.chart .axis { stroke: var(--line); stroke-width: 1; }
+.chart .grid { stroke: var(--line-2); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .tick { fill: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.chart .axis-title { fill: var(--muted); font-size: 9.5px; font-weight: 600; }
+.chart .hit { fill: transparent; cursor: crosshair; }
+.chart .cursor { transition: opacity .1s ease; pointer-events: none; }
+.chart .cursor line { stroke-width: 1; stroke-dasharray: 3 3; opacity: .7; }
+.chart .readout {
+  fill: var(--fg); font-size: 10.5px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke; stroke: var(--panel); stroke-width: 3.5px; stroke-linejoin: round;
+}
 .gauge-none { color: var(--muted); font-size: 11px; }
 .bars { width: 100%; height: auto; }
 

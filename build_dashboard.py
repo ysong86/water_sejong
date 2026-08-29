@@ -92,6 +92,85 @@ def sparkline(series, color=ACCENT, width=260, height=54, fill=True) -> str:
             % (width, height, area, line, color, last_x, last_y, color))
 
 
+def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
+               width=320, height=138, digits=2) -> str:
+    """축·눈금·호버 판독이 있는 시계열 선그래프.
+
+    sparkline 은 추세만 보여줄 뿐 값을 읽을 수 없다. 상황판에서는 '지금 몇 m 인지'
+    를 확인해야 하므로 y 눈금과 커서 판독을 붙였다.
+    """
+    points = [p for p in series if p.get("v") is not None]
+    if len(points) < 2:
+        return '<div class="empty">자료 부족</div>'
+
+    values = [p["v"] for p in points]
+    lo, hi = min(values), max(values)
+    if hi - lo < 1e-9:                       # 평평한 구간이면 위아래로 여유를 준다
+        lo, hi = lo - 0.05, hi + 0.05
+    pad_l, pad_r, pad_t, pad_b = 42, 8, 10, 28
+    plot_w = width - pad_l - pad_r
+    plot_h = height - pad_t - pad_b
+    step = plot_w / (len(points) - 1)
+
+    def y_of(value):
+        return pad_t + (hi - value) / (hi - lo) * plot_h
+
+    coords = [(pad_l + i * step, y_of(v)) for i, v in enumerate(values)]
+    line = " ".join("%s%.1f,%.1f" % ("M" if i == 0 else "L", x, y)
+                    for i, (x, y) in enumerate(coords))
+    area = ('<path d="%s L%.1f,%.1f L%.1f,%.1f Z" style="fill:%s" opacity="0.14"/>'
+            % (line, coords[-1][0], pad_t + plot_h, coords[0][0], pad_t + plot_h, color))
+
+    # y 눈금 3개 — 최저·중간·최고
+    ticks = []
+    for frac in (0.0, 0.5, 1.0):
+        value = lo + (hi - lo) * frac
+        y = y_of(value)
+        ticks.append('<line class="grid" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>'
+                     '<text class="tick" x="%.1f" y="%.1f" text-anchor="end">%s</text>'
+                     % (pad_l, y, width - pad_r, y, pad_l - 5, y + 3.2, fmt(value, digits)))
+
+    # x 눈금 — 처음·1/3·2/3·끝
+    for frac in (0.0, 1 / 3.0, 2 / 3.0, 1.0):
+        index = min(len(points) - 1, int(round(frac * (len(points) - 1))))
+        x = pad_l + index * step
+        stamp = str(points[index].get("t") or "")
+        label = stamp[8:10] + "시" if len(stamp) >= 10 else ""
+        anchor = "start" if frac == 0 else ("end" if frac == 1 else "middle")
+        ticks.append('<text class="tick" x="%.1f" y="%.1f" text-anchor="%s">%s</text>'
+                     % (x, height - pad_b + 14, anchor, label))
+
+    # 호버 판독 — 점마다 투명 띠를 두고 JS 가 세로선·값을 옮긴다
+    hits = "".join(
+        '<rect class="hit" x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+        'data-x="%.1f" data-y="%.1f" data-label="%s"/>'
+        % (pad_l + (i - 0.5) * step, pad_t, step, plot_h, x, y,
+           esc("%s · %s %s" % (hhmm(points[i].get("t")), fmt(values[i], digits), unit)))
+        for i, (x, y) in enumerate(coords))
+
+    axis = ('<line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>'
+            '<line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>'
+            % (pad_l, pad_t, pad_l, pad_t + plot_h,
+               pad_l, pad_t + plot_h, width - pad_r, pad_t + plot_h))
+
+    titles = ('<text class="axis-title" transform="translate(11,%.1f) rotate(-90)" '
+              'text-anchor="middle">%s</text>'
+              '<text class="axis-title" x="%.1f" y="%d" text-anchor="end">시각</text>'
+              % (pad_t + plot_h / 2, esc(y_title), width - pad_r, height - 3))
+
+    cursor = ('<g class="cursor" style="opacity:0">'
+              '<line y1="%.1f" y2="%.1f" style="stroke:%s"/>'
+              '<circle r="3.5" style="fill:%s"/>'
+              '<text class="readout" y="%.1f"></text></g>'
+              % (pad_t, pad_t + plot_h, color, color, pad_t - 1))
+
+    return ('<svg class="chart" viewBox="0 0 %d %d" data-w="%d">%s%s'
+            '<path d="%s" fill="none" style="stroke:%s" stroke-width="2" '
+            'stroke-linejoin="round" stroke-linecap="round"/>%s%s%s%s</svg>'
+            % (width, height, width, area, "".join(ticks), line, color,
+               axis, titles, cursor, hits))
+
+
 def level_gauge(entry) -> str:
     """현재 수위를 관심/주의보/경보/심각 눈금 위에 얹은 가로 게이지."""
     latest = entry.get("latest") or {}
@@ -282,7 +361,7 @@ def detail_waterlevel(entry: dict) -> str:
                          fmt(latest.get("v"), 2), "m", color, entry.get("stage_label"))
             + '<div class="sect"><h4>홍수단계 대비</h4>%s</div>' % level_gauge(entry)
             + '<div class="sect"><h4>최근 24시간 수위</h4>%s</div>'
-              % sparkline(entry.get("series") or [], color, width=300, height=70)
+              % line_chart(entry.get("series") or [], color, "m", "수위(m)")
             + "<dl>%s</dl>" % dl)
 
 
@@ -331,7 +410,7 @@ def detail_weir(entry: dict) -> str:
                          fmt(upper, 2), "m", color, "보")
             + gauge
             + '<div class="sect"><h4>최근 24시간 상류 수위</h4>%s</div>'
-              % sparkline(entry.get("series") or [], color, width=300, height=70)
+              % line_chart(entry.get("series") or [], color, "m", "상류 수위(m)")
             + "<dl>%s</dl>" % dl)
 
 
@@ -398,7 +477,7 @@ def detail_groundwater(entry: dict) -> str:
                          fmt(latest.get("v"), 2), "m", color,
                          entry.get("network_label"))
             + '<div class="sect"><h4>최근 24시간 지하수위</h4>%s</div>'
-              % sparkline(entry.get("series") or [], color, width=300, height=70)
+              % line_chart(entry.get("series") or [], color, "m", "지하수위(m)")
             + "<dl>%s</dl>" % dl + warn)
 
 
@@ -814,6 +893,43 @@ VIEW_JS = r"""
 """
 
 
+CHART_JS = r"""
+(function(){
+  // 선그래프 호버 판독. 상세 패널은 클릭할 때마다 새로 그려지므로
+  // 문서 전체에 위임해 두면 다시 붙일 필요가 없다.
+  function show(hit){
+    var svg = hit.ownerSVGElement; if(!svg) return;
+    var g = svg.querySelector('.cursor'); if(!g) return;
+    var x = parseFloat(hit.dataset.x), y = parseFloat(hit.dataset.y);
+    var w = parseFloat(svg.dataset.w) || 320;
+    g.style.opacity = 1;
+    g.querySelector('line').setAttribute('x1', x);
+    g.querySelector('line').setAttribute('x2', x);
+    var dot = g.querySelector('circle');
+    dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+    var t = g.querySelector('.readout');
+    t.textContent = hit.dataset.label;
+    // 오른쪽 끝에서는 글자가 잘리므로 기준점을 뒤집는다
+    var right = x > w * 0.55;
+    t.setAttribute('x', right ? x - 6 : x + 6);
+    t.setAttribute('text-anchor', right ? 'end' : 'start');
+  }
+  function hide(svg){
+    var g = svg && svg.querySelector('.cursor');
+    if (g) g.style.opacity = 0;
+  }
+  document.addEventListener('pointerover', function(e){
+    var hit = e.target.closest ? e.target.closest('.chart .hit') : null;
+    if (hit) show(hit);
+  });
+  document.addEventListener('pointerout', function(e){
+    var svg = e.target.closest ? e.target.closest('svg.chart') : null;
+    if (svg && !svg.contains(e.relatedTarget)) hide(svg);
+  });
+})();
+"""
+
+
 AUTOREFRESH_JS = r"""
 (function(){
   var MIN = %d;
@@ -1172,7 +1288,7 @@ def render(data: dict) -> str:
         render_quality(nier), render_weather(kma), render_pollution(data),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
-        THEME_JS + VIEW_JS
+        THEME_JS + VIEW_JS + CHART_JS
         + (AUTOREFRESH_JS % int((data.get("site") or {}).get("refresh_minutes", 5))))
 
 
