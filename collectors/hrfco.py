@@ -22,22 +22,26 @@ INFO_CACHE = "hrfco_stations.json"
 
 
 def _rows(payload) -> list:
-    """HRFCO 응답에서 레코드 목록을 꺼낸다. 래퍼 키가 문서마다 달라 관대하게 처리."""
+    """HRFCO 응답에서 레코드 목록을 꺼낸다. 래퍼 키가 문서마다 달라 관대하게 처리.
+
+    dam/info 처럼 목록 안에 null 이 섞여 오는 응답이 있어 dict 만 남긴다.
+    (예전에는 여기서 걸러내지 않아 댐 조회가 통째로 죽었다.)
+    """
     if isinstance(payload, list):
-        return payload
+        return [x for x in payload if isinstance(x, dict)]
     if not isinstance(payload, dict):
         return []
     for key in ("content", "Content", "list", "WL", "RF", "result"):
         value = payload.get(key)
         if isinstance(value, list):
-            return value
+            return [x for x in value if isinstance(x, dict)]
         if isinstance(value, dict):
             inner = _rows(value)
             if inner:
                 return inner
     for value in payload.values():          # 마지막 수단: 중첩된 첫 레코드 리스트
-        if isinstance(value, list) and value and isinstance(value[0], dict):
-            return value
+        if isinstance(value, list) and any(isinstance(x, dict) for x in value):
+            return [x for x in value if isinstance(x, dict)]
         if isinstance(value, dict):
             inner = _rows(value)
             if inner:
@@ -72,8 +76,8 @@ def fetch_stations(key: str, hydro: str = "waterlevel") -> list[dict]:
     out = []
     for raw in _rows(payload):
         row = _lower(raw)
-        code = (row.get("wlobscd") or row.get("rfobscd")
-                or row.get("boobscd") or row.get("obscd"))
+        code = (row.get("wlobscd") or row.get("rfobscd") or row.get("boobscd")
+                or row.get("dmobscd") or row.get("obscd"))
         if not code:
             continue
         out.append({
@@ -91,6 +95,7 @@ def fetch_stations(key: str, hydro: str = "waterlevel") -> list[dict]:
             "srswl": to_float(row.get("srswl")),   # 심각
             "pfh": to_float(row.get("pfh")),       # 계획홍수위
             "spcwl": to_float(row.get("spcwl")),   # 보 관리수위
+            "fldlmtwl": to_float(row.get("fldlmtwl")),  # 댐 홍수제한수위
             "gdt": to_float(row.get("gdt")),       # 영점표고(EL.m) — 단면도 기준면
         })
     if not out:
@@ -223,6 +228,83 @@ def collect_bo(key: str, cfg: dict) -> list[dict]:
     return out
 
 
+def _facility_series(key: str, code: str, hydro: str, hours: int,
+                     value_field: str) -> list[dict]:
+    end = now_kst()
+    start = end - timedelta(hours=hours)
+    url = (f"{BASE}/{key}/{hydro}/list/1H/{code}/"
+           f"{start.strftime('%Y%m%d%H')}/{end.strftime('%Y%m%d%H')}.json")
+    series = []
+    for raw in _rows(http_json(url)):
+        row = _lower(raw)
+        ymdhm = str(row.get("ymdhm") or "").strip()
+        if not ymdhm:
+            continue
+        series.append({"t": ymdhm, "v": to_float(row.get(value_field)),
+                       "owl": to_float(row.get("owl")),
+                       "inf": to_float(row.get("inf")),
+                       "tototf": to_float(row.get("tototf"))})
+    series.sort(key=lambda p: p["t"])
+    return series
+
+
+def _facility_latest(key: str, code: str, hydro: str, value_field: str):
+    for raw in _rows(http_json(f"{BASE}/{key}/{hydro}/list/10M/{code}.json")):
+        row = _lower(raw)
+        if not str(row.get("ymdhm") or "").strip():
+            continue
+        return {"t": str(row["ymdhm"]).strip(), "v": to_float(row.get(value_field)),
+                "owl": to_float(row.get("owl")), "inf": to_float(row.get("inf")),
+                "tototf": to_float(row.get("tototf"))}
+    return None
+
+
+def collect_dam(key: str, cfg: dict) -> list[dict]:
+    """금강 상류 댐. 방류가 늘면 몇 시간 뒤 세종 수위가 오르는 선행지표다."""
+    include = cfg.get("dam_names") or ["대청댐"]
+    try:
+        stations = [st for st in fetch_stations(key, "dam")
+                    if any(name in st["name"] for name in include)]
+    except CollectError:
+        return []
+
+    out = []
+    for st in stations:
+        entry = dict(st)
+        entry["lat"], entry["lon"] = None, None      # 세종 밖이라 지도에는 안 찍는다
+        try:
+            entry["series"] = _facility_series(key, st["code"], "dam",
+                                               int(cfg.get("hours", 24)), "swl")
+        except CollectError as exc:
+            entry["series"], entry["error"] = [], str(exc)
+        try:
+            entry["latest"] = _facility_latest(key, st["code"], "dam", "swl")
+        except CollectError:
+            entry["latest"] = next((p for p in reversed(entry["series"])
+                                    if p.get("v") is not None), None)
+        # 방류량 추이는 수위보다 이 화면에서 더 중요하다
+        entry["outflow"] = [{"t": p["t"], "v": p.get("tototf")} for p in entry["series"]]
+        out.append(entry)
+    return out
+
+
+def fetch_flood_forecast(key: str) -> list[dict]:
+    """홍수예보 발령현황. 평시에는 code 990(자료 없음)이 온다."""
+    payload = http_json(f"{BASE}/{key}/fldfct/list.json")
+    if isinstance(payload, dict) and str(payload.get("code", "")) == "990":
+        return []
+    out = []
+    for raw in _rows(payload):
+        row = _lower(raw)
+        out.append({
+            "kind": (row.get("kind") or row.get("fcttp") or "").strip(),
+            "area": (row.get("wrnaranm") or row.get("obsnm") or "").strip(),
+            "time": str(row.get("fctdt") or row.get("ymdhm") or "").strip(),
+            "note": (row.get("etc") or row.get("cn") or "").strip(),
+        })
+    return out
+
+
 def flood_stage(level, st: dict) -> tuple[str, str]:
     """현재 수위를 홍수 단계로 환산. (등급코드, 라벨)
 
@@ -245,7 +327,8 @@ def flood_stage(level, st: dict) -> tuple[str, str]:
 def collect(key: str, cfg: dict) -> dict:
     """세종 구간 수위·강수 관측소 현황을 한 덩어리로 반환."""
     include = cfg.get("address_keywords") or ["세종"]
-    result = {"waterlevel": [], "rainfall": [], "bo": [], "errors": []}
+    result = {"waterlevel": [], "rainfall": [], "bo": [], "dam": [],
+              "forecast": [], "errors": []}
 
     for hydro, name_key in (("waterlevel", "waterlevel_stations"),
                             ("rainfall", "rainfall_stations")):
@@ -308,7 +391,16 @@ def collect(key: str, cfg: dict) -> dict:
                                     if window else None)
             result[hydro].append(entry)
 
+    result["surge_threshold"] = float(cfg.get("surge_threshold", 0.3))
+
     if cfg.get("bo", True):
         result["bo"] = collect_bo(key, cfg)
+    if cfg.get("dam", True):
+        result["dam"] = collect_dam(key, cfg)
+    if cfg.get("forecast", True):
+        try:
+            result["forecast"] = fetch_flood_forecast(key)
+        except CollectError as exc:
+            result["errors"].append("홍수예보(선택): %s" % exc)
 
     return result

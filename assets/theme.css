@@ -429,6 +429,7 @@ header.top .sub {
 .pick .dot.sq { border-radius: 2px; }
 .pick .dot.dia { border-radius: 2px; transform: rotate(45deg); }
 .pick .dot.bar { border-radius: 1px; width: 13px; height: 5px; }
+.pick .dot.pent { border-radius: 2px; clip-path: polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%); width: 11px; height: 11px; }
 .pick .nm {
   flex: 1; font-size: 12.5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -594,6 +595,12 @@ header.top .sub {
 .chart .tick { fill: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
 .chart .axis-title { fill: var(--muted); font-size: 9.5px; font-weight: 600; }
 .chart .hit { fill: transparent; cursor: crosshair; }
+.chart .markline { stroke-width: 1; stroke-dasharray: 5 3; opacity: .85; }
+.chart .marklabel { font-size: 8.5px; font-weight: 700; text-anchor: end;
+  paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+.chart .rainbars rect { fill: var(--accent-2); opacity: .45; }
+.chart .headroom { fill: var(--muted); font-size: 9px; font-weight: 600;
+  paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
 .chart .cursor { transition: opacity .1s ease; pointer-events: none; }
 .chart .cursor line { stroke-width: 1; stroke-dasharray: 3 3; opacity: .7; }
 .chart .readout {

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import os
 import urllib.parse
 from datetime import datetime
@@ -93,7 +94,7 @@ def sparkline(series, color=ACCENT, width=260, height=54, fill=True) -> str:
 
 
 def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
-               width=320, height=138, digits=2) -> str:
+               width=320, height=138, digits=2, marks=None, rain=None) -> str:
     """축·눈금·호버 판독이 있는 시계열 선그래프.
 
     sparkline 은 추세만 보여줄 뿐 값을 읽을 수 없다. 상황판에서는 '지금 몇 m 인지'
@@ -105,6 +106,9 @@ def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
 
     values = [p["v"] for p in points]
     lo, hi = min(values), max(values)
+    # 축은 자료 범위에 맞춘다. 기준수위까지 담으려고 늘리면 수위선이 납작해져
+    # 정작 봐야 할 변화가 안 보인다. 화면 밖 기준수위는 아래에서 여유 거리로 알린다.
+    marks = marks or []
     if hi - lo < 1e-9:                       # 평평한 구간이면 위아래로 여유를 준다
         lo, hi = lo - 0.05, hi + 0.05
     pad_l, pad_r, pad_t, pad_b = 42, 8, 10, 28
@@ -114,6 +118,27 @@ def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
 
     def y_of(value):
         return pad_t + (hi - value) / (hi - lo) * plot_h
+
+    # 강수 막대 — 위에서 아래로 매다는 하이에토그래프 관례를 따른다
+    rain_svg = ""
+    rain = [r for r in (rain or []) if r.get("v") is not None]
+    if rain:
+        top = max(r["v"] for r in rain) or 1.0
+        band = plot_h * 0.34
+        bw = plot_w / max(len(rain), 1) * 0.62
+        bars = []
+        for i, r in enumerate(rain):
+            h = (r["v"] / top) * band
+            if h <= 0:
+                continue
+            x = pad_l + (i / max(len(rain) - 1, 1)) * plot_w - bw / 2
+            bars.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="1">'
+                        '<title>%s · %s mm</title></rect>'
+                        % (max(pad_l, x), pad_t, bw, h,
+                           esc(hhmm(r.get("t"))), fmt(r["v"], 1)))
+        rain_svg = ('<g class="rainbars">%s</g>'
+                    '<text class="tick" x="%.1f" y="%.1f">강수 최대 %s mm/h</text>'
+                    % ("".join(bars), pad_l + 3, pad_t + plot_h - 3, fmt(top, 1)))
 
     coords = [(pad_l + i * step, y_of(v)) for i, v in enumerate(values)]
     line = " ".join("%s%.1f,%.1f" % ("M" if i == 0 else "L", x, y)
@@ -148,6 +173,28 @@ def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
            esc("%s · %s %s" % (hhmm(points[i].get("t")), fmt(values[i], digits), unit)))
         for i, (x, y) in enumerate(coords))
 
+    # 홍수단계 기준수위 — 범위 안에 드는 것만 선으로. 위쪽으로 벗어난 것 중
+    # 가장 가까운 하나는 "여유 몇 m" 로 알려준다(그게 실제로 궁금한 값이다).
+    marklines = []
+    above = sorted((v, l) for v, l, _ in marks if v is not None and v > hi)
+    if above:
+        gap = above[0][0] - values[-1]
+        marklines.append('<text class="headroom" x="%.1f" y="%.1f" text-anchor="end">'
+                         '%s %s까지 %s 여유</text>'
+                         % (width - pad_r - 2, pad_t + 9, esc(above[0][1]),
+                            fmt(above[0][0], digits), fmt(gap, digits, " " + unit)))
+    for value, label, mcolor in marks:
+        if value is None or not (lo <= value <= hi):
+            continue
+        y = y_of(value)
+        marklines.append('<line class="markline" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" '
+                         'style="stroke:%s"/>'
+                         '<text class="marklabel" x="%.1f" y="%.1f" style="fill:%s">'
+                         '%s %s</text>'
+                         % (pad_l, y, width - pad_r, y, mcolor,
+                            width - pad_r - 2, y - 2.5, mcolor, label,
+                            fmt(value, digits)))
+
     axis = ('<line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>'
             '<line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>'
             % (pad_l, pad_t, pad_l, pad_t + plot_h,
@@ -164,11 +211,11 @@ def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
               '<text class="readout" y="%.1f"></text></g>'
               % (pad_t, pad_t + plot_h, color, color, pad_t - 1))
 
-    return ('<svg class="chart" viewBox="0 0 %d %d" data-w="%d">%s%s'
+    return ('<svg class="chart" viewBox="0 0 %d %d" data-w="%d">%s%s%s%s'
             '<path d="%s" fill="none" style="stroke:%s" stroke-width="2" '
             'stroke-linejoin="round" stroke-linecap="round"/>%s%s%s%s</svg>'
-            % (width, height, width, area, "".join(ticks), line, color,
-               axis, titles, cursor, hits))
+            % (width, height, width, area, "".join(ticks), rain_svg,
+               "".join(marklines), line, color, axis, titles, cursor, hits))
 
 
 def level_gauge(entry) -> str:
@@ -186,7 +233,7 @@ def level_gauge(entry) -> str:
     top = max(known) * 1.12
     bottom = min(0.0, (level or 0) * 0.9)
     span = (top - bottom) or 1.0
-    width, height = 260, 34
+    width, height = 260, 40
 
     def to_x(value):
         return max(0.0, min(1.0, (value - bottom) / span)) * width
@@ -196,10 +243,13 @@ def level_gauge(entry) -> str:
         if value is None:
             continue
         x = to_x(value)
-        ticks.append('<line x1="%.1f" y1="4" x2="%.1f" y2="20" style="stroke:%s" '
-                     'stroke-width="2"/><text x="%.1f" y="31" style="fill:%s" '
-                     'font-size="9" text-anchor="middle">%s</text>'
-                     % (x, x, color, x, color, label))
+        ticks.append('<line x1="%.1f" y1="4" x2="%.1f" y2="18" style="stroke:%s" '
+                     'stroke-width="2"/>'
+                     '<text x="%.1f" y="27" style="fill:%s" font-size="8.5" '
+                     'text-anchor="middle">%s</text>'
+                     '<text x="%.1f" y="35" style="fill:%s" font-size="8.5" '
+                     'text-anchor="middle" opacity="0.85">%s</text>'
+                     % (x, x, color, x, color, label, x, color, fmt(value, 2)))
 
     bar = ""
     if level is not None:
@@ -282,8 +332,26 @@ def summarize(data: dict) -> list:
         {"label": "24h 예보 강수", "value": fmt(forecast.get("rain_sum"), 1, " mm"),
          "sub": ("최대 강수확률 " + fmt(forecast.get("pop_max"), 0, "%")) if forecast else "자료없음",
          "color": ACCENT if (forecast.get("rain_sum") or 0) < 20 else WARN},
+        _surge_kpi(data),
         _groundwater_kpi(data),
     ]
+
+
+def _surge_kpi(data: dict) -> dict:
+    levels = [e for e in ((data.get("hrfco") or {}).get("waterlevel") or [])
+              if e.get("delta_1h") is not None]
+    if not levels:
+        return {"label": "1시간 수위 변화(최대)", "value": "—", "sub": "자료없음",
+                "color": NEUTRAL}
+    worst = max(levels, key=lambda e: abs(e["delta_1h"]))
+    delta = worst["delta_1h"]
+    threshold = (data.get("hrfco") or {}).get("surge_threshold") or 0.3
+    return {
+        "label": "1시간 수위 변화(최대)",
+        "value": "%s%s m" % ("+" if delta > 0 else "", fmt(delta, 2)),
+        "sub": worst.get("name", "—"),
+        "color": WARN if abs(delta) >= threshold else "var(--st-normal)",
+    }
 
 
 def _groundwater_kpi(data: dict) -> dict:
@@ -339,15 +407,55 @@ def _detail_head(name, sub, big, unit, color, tag=None) -> str:
             % (esc(name), tag_html, esc(sub), color, big, esc(unit)))
 
 
+def _distance(a_lat, a_lon, b_lat, b_lon):
+    """대략 거리(도). 인근 관측소를 고르는 데만 쓰므로 정밀도는 필요 없다."""
+    return math.hypot((a_lat - b_lat), (a_lon - b_lon) * 0.8)
+
+
+def enrich(data: dict) -> None:
+    """화면에서만 필요한 파생값을 붙인다 — 수위 급변 여부와 가장 가까운 강수 관측소.
+
+    강수와 수위를 같은 축에 겹쳐 보려면 짝을 지어야 하는데, API 에 그런 관계가
+    없으므로 좌표로 가장 가까운 강수 관측소를 고른다.
+    """
+    hrfco = data.get("hrfco") or {}
+    threshold = float(hrfco.get("surge_threshold") or 0.3)
+    rain_stations = [r for r in (hrfco.get("rainfall") or [])
+                     if r.get("lat") is not None and (r.get("series") or [])]
+
+    for entry in hrfco.get("waterlevel") or []:
+        delta = entry.get("delta_1h")
+        entry["surge"] = delta is not None and abs(delta) >= threshold
+        if not rain_stations or entry.get("lat") is None:
+            continue
+        near = min(rain_stations,
+                   key=lambda r: _distance(entry["lat"], entry["lon"],
+                                           r["lat"], r["lon"]))
+        entry["rain_name"] = near.get("name")
+        entry["rain_series"] = near.get("series") or []
+
+
+def stage_marks(entry: dict) -> list:
+    """차트에 그릴 홍수단계 기준수위."""
+    return [(entry.get("attwl"), "관심", "var(--st-watch)"),
+            (entry.get("wrnwl"), "주의보", "var(--st-warning)"),
+            (entry.get("almwl"), "경보", "var(--st-alert)"),
+            (entry.get("srswl"), "심각", "var(--st-serious)")]
+
+
 def detail_waterlevel(entry: dict) -> str:
     latest = entry.get("latest") or {}
+    rain_note = ('<span style="font-weight:400;text-transform:none;color:var(--muted)">'
+                 ' · 강수 %s</span>' % esc(entry.get("rain_name"))
+                 ) if entry.get("rain_series") else ""
     color = STAGE_COLORS.get(entry.get("stage", "unknown"), NEUTRAL)
     delta = entry.get("delta_1h")
     delta_html = "—"
     if delta is not None:
         arrow = "▲ +" if delta > 0 else ("▼ " if delta < 0 else "· ")
-        delta_html = ('<span class="delta %s">%s%s m/h</span>'
-                      % ("up" if delta > 0 else "down", arrow, fmt(abs(delta), 2)))
+        surge = ' <b style="color:var(--st-warning)">급변</b>' if entry.get("surge") else ""
+        delta_html = ('<span class="delta %s">%s%s m/h</span>%s'
+                      % ("up" if delta > 0 else "down", arrow, fmt(abs(delta), 2), surge))
     rows = [("관측시각", esc(hhmm(latest.get("t")))),
             ("1시간 변화", delta_html),
             ("유량", fmt(latest.get("fw"), 1, " ㎥/s")),
@@ -360,8 +468,10 @@ def detail_waterlevel(entry: dict) -> str:
     return (_detail_head(entry.get("name"), entry.get("addr") or "세종특별자치시",
                          fmt(latest.get("v"), 2), "m", color, entry.get("stage_label"))
             + '<div class="sect"><h4>홍수단계 대비</h4>%s</div>' % level_gauge(entry)
-            + '<div class="sect"><h4>최근 24시간 수위</h4>%s</div>'
-              % line_chart(entry.get("series") or [], color, "m", "수위(m)")
+            + '<div class="sect"><h4>최근 24시간 수위%s</h4>%s</div>'
+              % (rain_note, line_chart(entry.get("series") or [], color, "m", "수위(m)",
+                                       marks=stage_marks(entry),
+                                       rain=entry.get("rain_series")))
             + "<dl>%s</dl>" % dl)
 
 
@@ -411,6 +521,46 @@ def detail_weir(entry: dict) -> str:
             + gauge
             + '<div class="sect"><h4>최근 24시간 상류 수위</h4>%s</div>'
               % line_chart(entry.get("series") or [], color, "m", "상류 수위(m)")
+            + "<dl>%s</dl>" % dl)
+
+
+def detail_dam(entry: dict) -> str:
+    """댐 — 세종 수위의 선행지표. 방류량을 수위보다 앞에 놓는다."""
+    latest = entry.get("latest") or {}
+    color = "var(--gw-national)"
+    level, limit, plan = latest.get("v"), entry.get("fldlmtwl"), entry.get("pfh")
+
+    gauge = ""
+    if level is not None and limit:
+        share = max(0.0, min(1.3, level / limit)) * 100
+        over = share > 100
+        gauge = ('<div class="sect"><h4>홍수제한수위 대비</h4>'
+                 '<svg class="gauge" viewBox="0 0 260 20">'
+                 '<rect x="0" y="6" width="260" height="8" rx="4" style="fill:var(--panel-3)"/>'
+                 '<rect x="0" y="6" width="%.1f" height="8" rx="4" style="fill:%s"/>'
+                 '</svg><div class="note" style="margin:4px 0 0">저수위가 홍수제한수위'
+                 '(%s)의 %.0f%%</div></div>'
+                 % (min(260, 260 * share / 100),
+                    "var(--st-warning)" if over else color,
+                    fmt(limit, 1, " m"), share))
+
+    rows = [("관측시각", esc(hhmm(latest.get("t")))),
+            ("유입량", fmt(latest.get("inf"), 1, " ㎥/s")),
+            ("총 방류량", fmt(latest.get("tototf"), 1, " ㎥/s")),
+            ("홍수제한수위", fmt(limit, 2, " m")),
+            ("계획홍수위", fmt(plan, 2, " m")),
+            ("관리기관", esc(entry.get("agency") or "—")),
+            ("시설 코드", esc(entry.get("code")))]
+    dl = "".join("<dt>%s</dt><dd>%s</dd>" % (a, b) for a, b in rows)
+
+    return (_detail_head(entry.get("name"), "댐 · 저수위 기준", fmt(level, 2), "m",
+                         color, "선행지표")
+            + gauge
+            + '<div class="sect"><h4>최근 24시간 총 방류량</h4>%s</div>'
+              % line_chart(entry.get("outflow") or [], color, "㎥/s", "방류량(㎥/s)",
+                           digits=1)
+            + '<div class="sect"><h4>최근 24시간 저수위</h4>%s</div>'
+              % line_chart(entry.get("series") or [], color, "m", "저수위(m)")
             + "<dl>%s</dl>" % dl)
 
 
@@ -498,6 +648,16 @@ def build_points(data: dict, cfg_coords: dict | None = None) -> list:
             "value": fmt(latest.get("v"), 2, " m"),
             "detail": detail_waterlevel(entry),
         })
+    for i, entry in enumerate(hrfco.get("dam") or []):
+        latest = entry.get("latest") or {}
+        points.append({
+            "id": "dam%d" % i, "kind": "dam", "group": "댐(선행지표)",
+            "name": entry.get("name") or "(이름없음)",
+            "lat": entry.get("lat"), "lon": entry.get("lon"),
+            "color": "var(--gw-national)",
+            "value": fmt(latest.get("tototf"), 0, " ㎥/s"),
+            "detail": detail_dam(entry),
+        })
     for i, entry in enumerate(hrfco.get("bo") or []):
         latest = entry.get("latest") or {}
         points.append({
@@ -546,7 +706,8 @@ def build_points(data: dict, cfg_coords: dict | None = None) -> list:
 
 
 DOT_CLASS = {"waterlevel": "dot tri", "rainfall": "dot sq",
-             "quality": "dot", "groundwater": "dot dia", "weir": "dot bar"}
+             "quality": "dot", "groundwater": "dot dia", "weir": "dot bar",
+             "dam": "dot pent"}
 
 
 def render_maptools(floods) -> str:
@@ -669,7 +830,7 @@ def render_explorer(points: list) -> str:
                 % (render_maptools(floods), sejong_map.render([])))
 
     listing = []
-    for group in ("하천 수위", "보", "강수량", "수질", "지하수"):
+    for group in ("하천 수위", "보", "댐(선행지표)", "강수량", "수질", "지하수"):
         members = [p for p in points if p["group"] == group]
         if not members:
             continue
@@ -1201,6 +1362,7 @@ def render_errors(data: dict) -> str:
 
 
 def render(data: dict) -> str:
+    enrich(data)
     generated = data.get("generated_at") or stamp()
     demo = bool(data.get("demo"))
     kpis = "".join(
@@ -1208,13 +1370,42 @@ def render(data: dict) -> str:
         '<div class="v">%s</div><div class="s">%s</div></div>'
         % (k["color"], esc(k["label"]), esc(k["value"]), esc(k["sub"])) for k in summarize(data))
 
+    # 홍수예보 발령 — 있으면 화면 맨 위. 평시에는 비어 있다.
+    forecasts = (data.get("hrfco") or {}).get("forecast") or []
+    if forecasts:
+        items = "".join(
+            "<li><b>%s</b> %s <span style=\"opacity:.75\">%s</span></li>"
+            % (esc(f.get("kind") or "홍수예보"), esc(f.get("area")),
+               esc(hhmm(f.get("time")))) for f in forecasts)
+        flood_alert = ('<div class="alerts"><h3>홍수예보 발령</h3>'
+                       '<ul style="margin:0;padding-left:18px">%s</ul></div>' % items)
+    else:
+        flood_alert = ""
+
+    # 수위 급변 — 시간당 변화가 기준을 넘은 지점
+    surges = [e for e in ((data.get("hrfco") or {}).get("waterlevel") or [])
+              if e.get("surge")]
+    if surges:
+        threshold = (data.get("hrfco") or {}).get("surge_threshold") or 0.3
+        items = "".join(
+            "<li>%s <b>%s%s m/h</b> (현재 %s)</li>"
+            % (esc(e.get("name")), "+" if (e.get("delta_1h") or 0) > 0 else "",
+               fmt(e.get("delta_1h"), 2), fmt((e.get("latest") or {}).get("v"), 2, " m"))
+            for e in sorted(surges, key=lambda x: -abs(x.get("delta_1h") or 0)))
+        surge_alert = ('<div class="alerts warn"><h3>수위 급변 %d곳 '
+                       '<span style="font-weight:400;font-size:11px">기준 %s m/h</span></h3>'
+                       '<ul style="margin:0;padding-left:18px">%s</ul></div>'
+                       % (len(surges), fmt(threshold, 2), items))
+    else:
+        surge_alert = ""
+
     warnings = (data.get("kma") or {}).get("warnings") or []
-    alerts = ""
+    alerts = flood_alert + surge_alert
     if warnings:
         items = "".join("<li>%s <span style=\"opacity:.7\">(%s)</span></li>"
                         % (esc(w.get("title")), esc(w.get("time"))) for w in warnings)
-        alerts = ('<div class="alerts"><h3>기상특보</h3>'
-                  '<ul style="margin:0;padding-left:18px">%s</ul></div>' % items)
+        alerts += ('<div class="alerts"><h3>기상특보</h3>'
+                   '<ul style="margin:0;padding-left:18px">%s</ul></div>' % items)
 
     if demo:
         banner = '<span class="badge demo">샘플 데이터</span>'

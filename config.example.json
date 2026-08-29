@@ -22,7 +22,15 @@
         127.270833,
         36.4775
       ]
-    }
+    },
+    "dam": true,
+    "dam_names": [
+      "대청댐"
+    ],
+    "forecast": true,
+    "surge_threshold": 0.3,
+    "_선행지표": "대청댐·대청댐조정지 방류는 세종 수위의 선행지표. dam_names 부분일치.",
+    "_급변": "surge_threshold(m/h) 이상 오르내리면 화면에 급변으로 표시."
   },
   "nier": {
     "_발급": "https://www.data.go.kr → '국립환경과학원 수질' 검색 → 활용신청 → 일반 인증키",
