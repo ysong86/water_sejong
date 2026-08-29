@@ -588,6 +588,24 @@ header.top .sub {
 .gauge-none { color: var(--muted); font-size: 11px; }
 .bars { width: 100%; height: auto; }
 
+/* --------------------------------------------------------------- 오염원 구성 */
+
+.polblock + .polblock { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line-2); }
+.pol-head { display: flex; align-items: baseline; gap: 8px; }
+.pol-label { font-size: 12.5px; font-weight: 700; }
+.pol-year { color: var(--muted); font-size: 11px; }
+.pol-total {
+  font-size: 24px; font-weight: 800; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; margin: 2px 0 9px;
+}
+.sharebar { width: 100%; height: 14px; display: block; border-radius: 4px; overflow: hidden; }
+.shlist { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 2px 14px; margin-top: 9px; }
+.sh { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+.sh .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.sh .nm { color: var(--fg-2); }
+.sh .pc { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.sh .vv { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+
 /* --------------------------------------------------------------- 표 */
 
 .tablewrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }

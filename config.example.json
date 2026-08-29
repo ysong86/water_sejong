@@ -54,8 +54,9 @@
     "nx": null,
     "ny": null,
     "forecast_hours": 24,
-    "warnings": true,
-    "stn_id": "133"
+    "warnings": false,
+    "stn_id": "133",
+    "_특보": "기상특보는 '기상청_기상특보 조회서비스'를 따로 활용신청해야 한다. 신청 후 true 로."
   },
   "gims": {
     "_발급": "공공데이터포털 '국가지하수측정자료조회서비스'(data.go.kr/data/15114511) 또는 국가지하수정보센터(gims.go.kr) 오픈API",

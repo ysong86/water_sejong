@@ -30,18 +30,25 @@ DEFAULT_OPERATIONS = [
     {"id": "land", "label": "토지이용", "op": "getSigunguLandInfo"},
 ]
 
-# 확신할 수 있는 항목만 이름을 붙인다. 뜻이 애매한 필드에 한글 라벨을 붙이면
-# 숫자는 맞는데 설명이 틀리는, 가장 나쁜 오류가 된다.
-FIELD_LABELS = {
-    "life": [("POPUSUMCNT", "총 인구", "명", 0)],
-    "land": [
-        ("LANDUTILZAREASUM", "총 토지이용면적", "㎡", 0),
-        ("LANDUTILZAREAPADDIES", "논", "㎡", 0),
-        ("LANDUTILZAREAFIELDS", "밭", "㎡", 0),
-        ("LANDUTILZAREAORCHARD", "과수원", "㎡", 0),
-    ],
-}
+# 필드 뜻은 합계 검증으로 확정했다.
+#   CHY* 합 328,613 + VICHY* 합 63,698 = POPUSUMCNT 392,311  → CHY=처리구역 내, VICHY=밖
+#   LANDUTILZAREA* 합계 464,962,316㎡ = 464.96㎢ → 세종시 실제 면적과 일치
+# 뜻이 확실하지 않은 하위 항목(합류식·정화조 구분 등)은 일부러 쓰지 않는다.
+SEWER_IN = ("CHYSEWERSYSPOPU", "CHYCONFLUPOPU", "CHYDIRTYWNOTPOPU",
+            "CHYWATTANKNOTPOPU", "CHYREMOVNOTPOPU")
+SEWER_OUT = ("VICHYSEWERSYSPOPU", "VICHYCONFLUPOPU", "VICHYDIRTYWNOTPOPU",
+             "VICHYWATTANKNOTPOPU", "VICHYREMOVNOTPOPU")
 
+# 물환경에서 의미가 큰 지목 위주로. 나머지는 '기타'로 묶는다.
+LAND_PARTS = [
+    ("LANDUTILZAREAFORESTLAND", "임야"),
+    ("LANDUTILZAREAPADDIES", "논"),
+    ("LANDUTILZAREAFIELDS", "밭"),
+    ("LANDUTILZAREAEARTH", "대지"),
+    ("LANDUTILZAREARIVER", "하천"),
+    ("LANDUTILZAREAROAD", "도로"),
+    ("LANDUTILZAREAORCHARD", "과수원"),
+]
 
 def _service_key(key: str) -> str:
     key = key.strip()
@@ -94,6 +101,43 @@ def probe(key: str, cfg: dict) -> list[dict]:
     return [probe_one("%s/%s" % (BASE, spec["op"]), key, cfg) for spec in ops]
 
 
+def _sum(row: dict, fields) -> float:
+    return sum(to_float(row.get(f)) or 0.0 for f in fields)
+
+
+def _summarize(kind: str, row: dict) -> list:
+    """항목별로 화면에 바로 쓸 수 있게 정리한다. 단위 환산과 비율까지 여기서."""
+    if kind == "life":
+        total = to_float(row.get("POPUSUMCNT"))
+        inside, outside = _sum(row, SEWER_IN), _sum(row, SEWER_OUT)
+        if not total:
+            return []
+        return [
+            {"label": "총 인구", "value": total, "unit": "명", "digits": 0},
+            {"label": "하수처리구역 내", "value": inside, "unit": "명", "digits": 0,
+             "share": round(inside / total * 100, 1)},
+            {"label": "하수처리구역 밖", "value": outside, "unit": "명", "digits": 0,
+             "share": round(outside / total * 100, 1)},
+        ]
+
+    if kind == "land":
+        total = to_float(row.get("LANDUTILZAREASUM"))
+        if not total:
+            return []
+        rows = [{"label": "총 면적", "value": total / 1e6, "unit": "㎢", "digits": 1}]
+        named = 0.0
+        for field, label in LAND_PARTS:
+            value = to_float(row.get(field)) or 0.0
+            named += value
+            rows.append({"label": label, "value": value / 1e6, "unit": "㎢",
+                         "digits": 1, "share": round(value / total * 100, 1)})
+        etc = max(0.0, total - named)
+        rows.append({"label": "기타", "value": etc / 1e6, "unit": "㎢", "digits": 1,
+                     "share": round(etc / total * 100, 1)})
+        return rows
+    return []
+
+
 def collect(key: str, cfg: dict) -> dict:
     """세종시 한 행만 뽑아 항목별로 정리한다."""
     result = {"blocks": [], "year": None, "errors": [], "region": None}
@@ -124,11 +168,7 @@ def collect(key: str, cfg: dict) -> dict:
 
         if picked:
             block["year"] = used_year
-            for field, label, unit, digits in FIELD_LABELS.get(spec.get("id"), []):
-                value = to_float(picked.get(field))
-                if value is not None:
-                    block["rows"].append({"label": label, "value": value,
-                                          "unit": unit, "digits": digits})
+            block["rows"] = _summarize(spec.get("id"), picked)
             if not block["rows"]:
                 block["error"] = ("%s: 응답은 왔으나 아는 항목이 없습니다. "
                                   "필드명이 바뀌었을 수 있습니다." % block["label"])

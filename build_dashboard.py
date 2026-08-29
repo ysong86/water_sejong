@@ -930,6 +930,31 @@ def render_sources(data: dict) -> str:
     return '<br>사용 엔드포인트 — ' + ' · '.join(used)
 
 
+# 구성비 막대에 쓰는 색. 물환경 맥락에서 임야(녹)·농경지(황)·시가지(회)·수면(청)
+# 정도로 구분되게 잡았다.
+SHARE_COLORS = ["var(--st-normal)", "var(--g-iii)", "var(--st-warning)",
+                "var(--st-unknown)", "var(--accent)", "var(--gw-national)",
+                "var(--g-ii)", "var(--line)"]
+
+
+def share_bar(parts) -> str:
+    """비율 항목들을 가로 누적 막대 하나로. parts = [(라벨, 비율%)]"""
+    parts = [(label, share) for label, share in parts if share and share > 0]
+    if not parts:
+        return ""
+    width, height = 300, 14
+    x, segments = 0.0, []
+    for index, (label, share) in enumerate(parts):
+        w = width * share / 100.0
+        color = SHARE_COLORS[index % len(SHARE_COLORS)]
+        segments.append('<rect x="%.1f" y="0" width="%.1f" height="%d" style="fill:%s">'
+                        '<title>%s %.1f%%</title></rect>'
+                        % (x, max(w, 0.6), height, color, esc(label), share))
+        x += w
+    return ('<svg class="sharebar" viewBox="0 0 %d %d" preserveAspectRatio="none">%s</svg>'
+            % (width, height, "".join(segments)))
+
+
 def render_pollution(data: dict) -> str:
     """세종시 수질오염원 현황(연 단위 통계). 실시간 값과 성격이 달라 기준연도를 밝힌다."""
     stat = data.get("nierstat") or {}
@@ -940,14 +965,27 @@ def render_pollution(data: dict) -> str:
 
     cards = []
     for block in blocks:
-        rows = "".join(
-            '<div class="q"><div class="l">%s</div><div class="v">%s</div></div>'
-            % (esc(row["label"]), fmt(row["value"], row["digits"], " " + row["unit"]))
-            for row in block["rows"])
-        cards.append('<div class="sect" style="margin-top:0;padding-top:0;border:0">'
-                     '<h4>%s <span style="font-weight:400;text-transform:none">'
-                     '%s년 기준</span></h4><div class="qgrid">%s</div></div>'
-                     % (esc(block["label"]), esc(block.get("year") or "—"), rows))
+        rows = block["rows"]
+        head, rest = rows[0], rows[1:]
+        parts = [(r["label"], r.get("share")) for r in rest if r.get("share")]
+
+        items = "".join(
+            '<div class="sh"><span class="dot" style="background:%s"></span>'
+            '<span class="nm">%s</span><span class="pc">%s%%</span>'
+            '<span class="vv">%s</span></div>'
+            % (SHARE_COLORS[i % len(SHARE_COLORS)], esc(r["label"]),
+               fmt(r.get("share"), 1), fmt(r["value"], r["digits"], " " + r["unit"]))
+            for i, r in enumerate(rest))
+
+        cards.append(
+            '<div class="polblock">'
+            '<div class="pol-head"><span class="pol-label">%s</span>'
+            '<span class="pol-year">%s년</span></div>'
+            '<div class="pol-total">%s<span class="dt-unit"> %s</span></div>'
+            '%s<div class="shlist">%s</div></div>'
+            % (esc(block["label"]), esc(block.get("year") or "—"),
+               fmt(head["value"], head["digits"]), esc(head["unit"]),
+               share_bar(parts), items))
     return "".join(cards)
 
 
