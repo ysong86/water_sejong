@@ -29,6 +29,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: API 서버 연결 확인
+        # 키 없이 도달 가능성만 본다. 국내 기관 API 가 해외 IP 를 막는 경우가 있어,
+        # "키가 틀렸다" 와 "아예 닿지 않는다" 를 구분하기 위한 단계다.
+        run: |
+          for host in api.hrfco.go.kr apis.data.go.kr www.gims.go.kr; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "https://$host/" 2>&1 || echo "실패")
+            echo "$host -> $code"
+          done
+
       - name: 수집 및 상황판 생성
         env:
           HRFCO_KEY: ${{ secrets.HRFCO_KEY }}

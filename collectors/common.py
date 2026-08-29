@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import ssl
 import time
 import urllib.error
@@ -18,6 +19,38 @@ KST = timezone(timedelta(hours=9))
 
 USER_AGENT = "sejong-water-dashboard/1.0 (+python-urllib)"
 DEFAULT_TIMEOUT = 20
+
+
+def safe_url(url) -> str:
+    """오류 메시지에 쓸 주소. 인증키를 가린다.
+
+    HRFCO 는 키를 경로에 넣고(api.hrfco.go.kr/{키}/...), 공공데이터포털·GIMS 는
+    질의문자열에 넣는다. 이 문자열이 공개 저장소의 실행 로그에 남으면 키가
+    새므로 양쪽 다 가린다. 정규식 대신 문자열 처리로 쓴 이유는 단순함 때문이다.
+    """
+    text = str(url or "")
+
+    # 1) 경로에 든 키 — 호스트 바로 뒤 한 조각
+    marker = "api.hrfco.go.kr/"
+    at = text.find(marker)
+    if at >= 0:
+        head = text[:at + len(marker)]
+        tail = text[at + len(marker):]
+        cut = tail.find("/")
+        text = head + "<KEY>" + (tail[cut:] if cut >= 0 else "")
+
+    # 2) 질의문자열에 든 키
+    if "?" in text:
+        base, _, query = text.partition("?")
+        parts = []
+        for chunk in query.split("&"):
+            name = chunk.split("=", 1)[0]
+            if name.lower() in ("servicekey", "key", "authkey", "apikey"):
+                parts.append(name + "=<KEY>")
+            else:
+                parts.append(chunk)
+        text = base + "?" + "&".join(parts)
+    return text
 
 
 class CollectError(Exception):
@@ -120,7 +153,12 @@ def http_get(url: str, params: dict | None = None, timeout: int = DEFAULT_TIMEOU
             last = exc
             if attempt < retries:
                 time.sleep(1.5 * (attempt + 1))
-    raise CollectError(f"요청 실패: {url.split('?')[0]} — {last}")
+    detail = last
+    if isinstance(last, urllib.error.HTTPError):
+        detail = "HTTP %s %s" % (last.code, last.reason)
+    elif isinstance(last, urllib.error.URLError):
+        detail = "연결 실패 (%s)" % last.reason
+    raise CollectError("요청 실패: %s — %s" % (safe_url(url.split("?")[0]), detail))
 
 
 def http_json(url: str, params: dict | None = None, **kw):
@@ -130,7 +168,7 @@ def http_json(url: str, params: dict | None = None, **kw):
         raise CollectError("응답이 비어 있습니다.")
     if stripped[0] not in "{[":
         # 공공데이터포털은 오류를 XML/HTML 로 돌려준다. 앞부분을 그대로 보여주는 편이 진단에 낫다.
-        raise CollectError(f"JSON 이 아닌 응답: {stripped[:300]}")
+        raise CollectError("JSON 이 아닌 응답: %s" % safe_url(stripped[:300]))
     try:
         return json.loads(stripped)
     except ValueError as exc:
