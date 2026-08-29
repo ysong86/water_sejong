@@ -1277,7 +1277,14 @@ def has_any_data(data: dict) -> bool:
 
 
 def render_sources(data: dict) -> str:
-    """어떤 주소에서 받아온 값인지 남긴다. 수치를 검증할 때 이게 있어야 한다."""
+    """어떤 주소에서 받아온 값인지 남긴다.
+
+    엔드포인트 확정 단계에서 검증용으로 넣었던 것이라 기본은 꺼둔다. 공개 화면에
+    내부 구현 세부사항을 보일 이유가 없다. 문제 추적이 필요하면
+    config 의 site.show_endpoints 를 true 로.
+    """
+    if not (data.get("site") or {}).get("show_endpoints"):
+        return ""
     used = []
     for key, label in (("nier", "수질"), ("gims", "지하수")):
         endpoint = (data.get(key) or {}).get("endpoint")
