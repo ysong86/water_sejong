@@ -16,3 +16,6 @@ _*.geojson
 
 # gh-pages 배포용 워크트리
 .ghpages/
+
+# PC 에서 자동 실행을 멈추는 스위치 (기계마다 다름)
+data/PAUSED

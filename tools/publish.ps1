@@ -27,6 +27,14 @@ $stamp = Get-Date -Format "yyyy-MM-dd HH:mm"
 
 Set-Location $root
 
+# 정지 스위치 - data 폴더에 PAUSED 파일이 있으면 아무것도 하지 않는다.
+# 수집을 NAS 로 옮긴 뒤에도 작업 스케줄러 항목이 남아 창이 뜨는 경우가 있는데,
+# 그 항목을 지우려면 관리자 권한이 필요하다. 권한 없이 즉시 멈추기 위한 장치.
+if (Test-Path (Join-Path $root "data\PAUSED")) {
+    Write-Host "PAUSED 파일이 있어 실행하지 않습니다. (지우면 다시 동작)"
+    exit 0
+}
+
 function Fail($message) {
     Write-Host "[실패] $message" -ForegroundColor Red
     exit 1
