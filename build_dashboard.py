@@ -1046,6 +1046,7 @@ def freshness(data: dict) -> list:
 
 
 PENDING_NOTE = "업데이트 예정"
+DEFAULT_PENDING = ["groundwater", "flood"]
 
 
 def _pending(data: dict, key: str) -> bool:
@@ -1054,7 +1055,11 @@ def _pending(data: dict, key: str) -> bool:
     '자료없음' 은 고장처럼 읽히고, 내부 경로를 노출하는 안내는 공개 화면에
     맞지 않는다. 무엇을 준비 중이라고 밝힐지는 운영자가 config 로 정한다.
     """
-    return key in ((data.get("site") or {}).get("pending") or [])
+    site = data.get("site") or {}
+    pending = site.get("pending")
+    if pending is None:                 # 설정이 없으면 기본값. NAS 쪽 config 를
+        pending = DEFAULT_PENDING       # 손대지 않아도 되도록.
+    return key in pending
 
 
 def _cadence_text(minutes) -> str:
