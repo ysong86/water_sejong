@@ -358,7 +358,8 @@ def _groundwater_kpi(data: dict) -> dict:
     stations = (data.get("gims") or {}).get("stations") or []
     deltas = [s.get("delta_24h") for s in stations if s.get("delta_24h") is not None]
     if not deltas:
-        return {"label": "지하수위 24h 변화", "value": "—", "sub": "자료없음",
+        return {"label": "지하수위 24h 변화", "value": "—",
+                "sub": PENDING_NOTE if _pending(data, "groundwater") else "자료없음",
                 "color": NEUTRAL}
     average = sum(deltas) / len(deltas)
     falling = sum(1 for d in deltas if d < 0)
@@ -710,15 +711,19 @@ DOT_CLASS = {"waterlevel": "dot tri", "rainfall": "dot sq",
              "dam": "dot pent"}
 
 
-def render_maptools(floods) -> str:
+def render_maptools(floods, data=None) -> str:
     zoom = ('<div class="zoombtns">'
             '<button type="button" data-zoom="in" title="확대">+</button>'
             '<button type="button" data-zoom="out" title="축소">−</button>'
             '<button type="button" data-zoom="reset" title="원래대로">초기화</button>'
             '</div>')
     if not floods:
-        hint = ('<div class="ft-empty">침수·범람도 없음 — '
-                '<code>assets/flood/</code> 에 넣으면 여기서 켤 수 있습니다</div>')
+        data = data or {}
+        if (data.get("site") or {}).get("show_endpoints"):
+            hint = ('<div class="ft-empty">침수·범람도 없음 — '
+                    '<code>assets/flood/</code> 에 넣으면 여기서 켤 수 있습니다</div>')
+        else:
+            hint = ('<div class="ft-empty">침수·범람도 <b>%s</b></div>' % PENDING_NOTE)
         return '<div class="maptools">%s%s</div>' % (zoom, hint)
 
     chips = []
@@ -824,7 +829,7 @@ ZOOM_JS = r"""
 """
 
 
-def render_explorer(points: list) -> str:
+def render_explorer(points: list, data=None) -> str:
     floods = sejong_map.load_floods()
     if not points:
         # 관측지점이 없어도 행정구역·하천수계는 보여준다. 지도까지 사라지면
@@ -835,7 +840,7 @@ def render_explorer(points: list) -> str:
                 '<p class="note" style="margin:11px 0 0">관측지점이 없습니다. '
                 '인증키를 넣으면 수위·강수·수질·지하수 지점이 이 지도에 표시됩니다.</p>'
                 '</section></div>'
-                % (render_maptools(floods), sejong_map.render([])))
+                % (render_maptools(floods, data), sejong_map.render([])))
 
     listing = []
     # 물이 흐르는 순서대로 — 비가 와서(강수), 댐이 방류하고, 하천 수위가 오르고,
@@ -903,7 +908,7 @@ def render_explorer(points: list) -> str:
             'g.querySelector(".grphead").setAttribute("aria-expanded",String(!!st[g.dataset.grp]));'
             '});}catch(e){}'
             'sel(first);})();</script><script>%s</script>'
-            % ("".join(listing), render_maptools(floods),
+            % ("".join(listing), render_maptools(floods, data),
                sejong_map.render(points), payload,
                json.dumps(points[0]["id"]), ZOOM_JS))
 
@@ -1012,8 +1017,9 @@ def freshness(data: dict) -> list:
     out = []
     for label, key, observed, count in rows:
         if not count:
-            out.append({"label": label, "text": "자료없음", "age": "",
-                        "color": NEUTRAL})
+            out.append({"label": label,
+                        "text": PENDING_NOTE if _pending(data, key) else "자료없음",
+                        "age": "", "color": NEUTRAL})
             continue
         if not observed:
             out.append({"label": label, "text": "시각미상", "age": "%d개소" % count,
@@ -1037,6 +1043,18 @@ def freshness(data: dict) -> list:
                     "age": "%s · %d개소" % (age, count), "color": color,
                     "cadence": SOURCE_CADENCE.get(key)})
     return out
+
+
+PENDING_NOTE = "업데이트 예정"
+
+
+def _pending(data: dict, key: str) -> bool:
+    """아직 연결 전이라 '준비 중'으로 알릴 항목인가.
+
+    '자료없음' 은 고장처럼 읽히고, 내부 경로를 노출하는 안내는 공개 화면에
+    맞지 않는다. 무엇을 준비 중이라고 밝힐지는 운영자가 config 로 정한다.
+    """
+    return key in ((data.get("site") or {}).get("pending") or [])
 
 
 def _cadence_text(minutes) -> str:
@@ -1522,7 +1540,7 @@ def render(data: dict) -> str:
 </div><script>%s</script></body></html>""" % (
         THEME_BOOT, load_css(), FONT_LINK, banner, esc(generated), THEME_TOGGLE, demo_note, alerts, render_viewbar(), kpis,
         render_freshness(data),
-        render_explorer(build_points(data)),
+        render_explorer(build_points(data), data),
         render_quality(nier), render_weather(kma), render_pollution(data),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
