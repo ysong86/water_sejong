@@ -711,6 +711,36 @@ DOT_CLASS = {"waterlevel": "dot tri", "rainfall": "dot sq",
              "dam": "dot pent"}
 
 
+DEFAULT_BASEMAP = {
+    "provider": "osm",
+    "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "attribution": "© OpenStreetMap 기여자",
+    "max_zoom": 18,
+    "label": "배경지도",
+}
+
+
+def basemap_config(site: dict) -> dict:
+    """배경지도 설정. url 이 비면 칩 자체가 나오지 않는다(= 바깥 요청 0)."""
+    base = (site or {}).get("basemap")
+    if base is None:
+        return dict(DEFAULT_BASEMAP)
+    if base is False or base == {}:
+        return {}
+    return {**DEFAULT_BASEMAP, **base}
+
+
+def _basemap_chip(data=None) -> str:
+    base = basemap_config((data or {}).get("site"))
+    if not base.get("url"):
+        return ""
+    # 이 칩을 켜야 타일을 받아온다. 끄고 있으면 바깥으로 요청이 나가지 않는다.
+    return ('<div class="mtgroup"><button type="button" class="ft" '
+            'data-flag="basemap" title="배경에 실제 지도를 깔니다. '
+            '켜면 타일 서버로 요청이 나갑니다.">%s</button></div>'
+            % esc(base.get("label") or "배경지도"))
+
+
 def render_maptools(floods, data=None) -> str:
     zoom = ('<div class="zoombtns">'
             '<button type="button" data-zoom="in" title="확대">+</button>'
@@ -724,7 +754,8 @@ def render_maptools(floods, data=None) -> str:
                     '<code>assets/flood/</code> 에 넣으면 여기서 켤 수 있습니다</div>')
         else:
             hint = ('<div class="ft-empty">침수·범람도 <b>%s</b></div>' % PENDING_NOTE)
-        return '<div class="maptools">%s%s</div>' % (zoom, hint)
+        return ('<div class="maptools">%s%s%s</div>'
+                % (zoom, hint, _basemap_chip(data)))
 
     chips = []
     for layer in floods:
@@ -734,8 +765,8 @@ def render_maptools(floods, data=None) -> str:
                      'style="--c:%s">%s</button>'
                      % (esc(layer["id"]), layer["color"], esc(label or layer["id"])))
     return ('<div class="maptools">%s<div class="fts">'
-            '<span class="ft-label">침수·범람</span>%s</div></div>'
-            % (zoom, "".join(chips)))
+            '<span class="ft-label">침수·범람</span>%s</div>%s</div>'
+            % (zoom, "".join(chips), _basemap_chip(data)))
 
 
 ZOOM_JS = r"""
@@ -774,13 +805,112 @@ ZOOM_JS = r"""
     sbLabel.textContent = nice >= 1000 ? (nice/1000) + ' km' : nice + ' m';
   }
 
+  // ------------------------------------------------------------ 배경지도
+  // SVG 안에 슬리피 지도를 얹는다. 타일은 칩을 켜야 받아온다 - 끄고 있으면
+  // 바깥으로 요청이 한 번도 나가지 않는다(폐쇄망에서도 나머지는 그대로).
+  //
+  // 타일은 Web Mercator, 이 지도는 등장방형이라 좌표계가 다르다. 그래도 타일마다
+  // 제 모서리를 이 투영으로 옮겨 놓으면 한 장 안에서 생기는 어긋남이 3m 남짓이라
+  // 눈에 보이지 않는다. 투영 자체를 바꾸는 것보다 안전하다.
+  var BASEMAP = window.__SWBASE || {};
+  var baseLayer = svg.querySelector('.basemap');
+  var LON0=+svg.dataset.lon0, LAT1=+svg.dataset.lat1, KX=+svg.dataset.kx,
+      PSCALE=+svg.dataset.scale, OFFX=+svg.dataset.offx, OFFY=+svg.dataset.offy;
+  var tiles = new Map(), baseOn = false, baseTimer = null;
+
+  function pxLon(lon){ return OFFX + (lon-LON0)*KX*PSCALE; }
+  function pxLat(lat){ return OFFY + (LAT1-lat)*PSCALE; }
+  function lonAt(x){ return LON0 + (x-OFFX)/(KX*PSCALE); }
+  function latAt(y){ return LAT1 - (y-OFFY)/PSCALE; }
+  function lon2t(lon,z){ return (lon+180)/360*Math.pow(2,z); }
+  function lat2t(lat,z){ var r=lat*Math.PI/180;
+    return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z); }
+  function t2lon(x,z){ return x/Math.pow(2,z)*360-180; }
+  function t2lat(y,z){ var n=Math.PI-2*Math.PI*y/Math.pow(2,z);
+    return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))); }
+
+  function clearTiles(){
+    tiles.forEach(function(el){ el.remove(); });
+    tiles.clear();
+  }
+
+  function drawBase(){
+    if(!baseOn || !BASEMAP.url || !baseLayer) return;
+    var rect = svg.getBoundingClientRect();
+    // 지도 칸이 좁다고 타일 레벨을 떨어뜨리면 안 된다. 폭에 그대로 맞추면
+    // 좁은 화면에서 z=12 같은 광역 레벨이 잡히는데, 그 축척의 타일에는 녹지와
+    // 고속도로밖에 없어 배경이 텅 빈 것처럼 보인다. viewBox 를 바닥으로 삼는다.
+    var ratio = Math.max(1, (rect.width || W) / W);
+    var z = Math.round(Math.log(360 * KX * PSCALE * k * ratio / 256) / Math.LN2);
+    z = Math.max(9, Math.min(BASEMAP.max_zoom || 18, z));
+
+    var lonMin=lonAt((0-tx)/k), lonMax=lonAt((W-tx)/k);
+    var latMax=latAt((0-ty)/k), latMin=latAt((H-ty)/k);
+
+    var x0,x1,y0,y1;
+    for(;;){
+      x0=Math.floor(lon2t(lonMin,z)); x1=Math.floor(lon2t(lonMax,z));
+      y0=Math.floor(lat2t(latMax,z)); y1=Math.floor(lat2t(latMin,z));
+      if((x1-x0+1)*(y1-y0+1) <= 240 || z <= 9) break;
+      z--;
+    }
+
+    var want = {}, n = Math.pow(2,z);
+    for(var ix=x0; ix<=x1; ix++){
+      for(var iy=y0; iy<=y1; iy++){
+        if(ix<0||iy<0||ix>=n||iy>=n) continue;
+        var key = z+'/'+ix+'/'+iy;
+        want[key] = 1;
+        if(tiles.has(key)) continue;
+        var ax=pxLon(t2lon(ix,z)),   ay=pxLat(t2lat(iy,z));
+        var bx=pxLon(t2lon(ix+1,z)), by=pxLat(t2lat(iy+1,z));
+        var img=document.createElementNS('http://www.w3.org/2000/svg','image');
+        img.setAttribute('x', ax.toFixed(2));
+        img.setAttribute('y', ay.toFixed(2));
+        // 0.6 단위씩 겹쳐 둔다. 딱 맞추면 타일 사이에 실금이 보인다.
+        img.setAttribute('width', (bx-ax+0.6).toFixed(2));
+        img.setAttribute('height', (by-ay+0.6).toFixed(2));
+        img.setAttribute('preserveAspectRatio','none');
+        var url = String(BASEMAP.url).replace('{z}',z).replace('{x}',ix)
+                    .replace('{y}',iy).replace('{s}','abc'[(ix+iy)%3]);
+        img.setAttribute('href', url);
+        img.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href', url);
+        baseLayer.appendChild(img);
+        tiles.set(key, img);
+      }
+    }
+    tiles.forEach(function(el,key){
+      if(!want[key]){ el.remove(); tiles.delete(key); }
+    });
+  }
+
+  function scheduleBase(){
+    if(!baseOn) return;
+    clearTimeout(baseTimer);
+    baseTimer = setTimeout(drawBase, 130);      // 끄는 중에 수십 번 부르지 않게
+  }
+
+  var credit = svg.querySelector('.basemap-credit');
+  if(credit && BASEMAP.attribution) credit.textContent = '배경지도 ' + BASEMAP.attribution;
+
+  // 확대 보정. 선에는 non-scaling-stroke 가 걸려 있어 화면상 굵기가 고정이고,
+  // 여기서 배율에 아주 조금만 더한다(k^0.22, 최대 1.5배). 배율을 그대로 따르면
+  // 14배 확대에서 하천 하나가 동네를 덮는다. 굵기를 줄이는 것만으로는 부족해서
+  // 색도 함께 뺀다(--zo). 배경지도가 깔려 있으면 더 과감히 뺀다.
+  function updateWidths(){
+    svg.style.setProperty('--zw', Math.min(1.5, Math.pow(k, 0.22)).toFixed(3));
+    var step = baseOn ? 0.15 : 0.085, floor = baseOn ? 0.42 : 0.66;
+    var fade = 1 - step * (Math.log(Math.max(1, k)) / Math.LN2);
+    svg.style.setProperty('--zo', Math.max(floor, fade).toFixed(3));
+  }
+
   function apply(){ clamp();
     g.setAttribute('transform','translate('+tx.toFixed(2)+','+ty.toFixed(2)+') scale('+k.toFixed(4)+')');
     var inv=(1/k).toFixed(4);
     svg.querySelectorAll('.cs').forEach(function(e){
       e.setAttribute('transform','translate('+e.dataset.x+','+e.dataset.y+') scale('+inv+')'); });
     svg.classList.toggle('zoomed', k>1.01);
-    updateScale(); }
+    updateWidths(); updateScale(); scheduleBase(); }
   function toSvg(evt){ var m=svg.getScreenCTM(); if(!m) return null; m=m.inverse();
     return {x:evt.clientX*m.a+evt.clientY*m.c+m.e, y:evt.clientX*m.b+evt.clientY*m.d+m.f}; }
   function zoomAt(px,py,factor){ var nk=Math.min(MAXK,Math.max(MINK,k*factor));
@@ -818,11 +948,33 @@ ZOOM_JS = r"""
       if(mode==='reset'){ k=1; tx=0; ty=0; apply(); return; }
       zoomAt(W/2, H/2, mode==='in'?1.5:1/1.5); }); });
 
-  document.querySelectorAll('.ft').forEach(function(b){
+  document.querySelectorAll('.ft[data-flood]').forEach(function(b){
     b.addEventListener('click', function(){
       var on=b.classList.toggle('on');
       var el=svg.querySelector('.flood[data-flood="'+b.dataset.flood+'"]');
       if(el) el.style.display = on ? 'block' : 'none'; }); });
+
+  // 배경지도 칩. 켠 상태를 브라우저에 기억한다.
+  var baseChip = document.querySelector('.ft[data-flag="basemap"]');
+  if(baseChip){
+    var KEY='sw-map', saved={};
+    try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(_){}
+    var on = saved.basemap === true;          // 기본은 꺼짐 — 바깥 요청 0
+    function paintBase(state){
+      baseChip.classList.toggle('on', state);
+      svg.classList.toggle('has-base', state);
+      baseOn = state;
+      updateWidths();
+      if(state) drawBase(); else clearTiles();
+    }
+    paintBase(on);
+    baseChip.addEventListener('click', function(){
+      var next = !baseChip.classList.contains('on');
+      paintBase(next);
+      saved.basemap = next;
+      try{ localStorage.setItem(KEY, JSON.stringify(saved)); }catch(_){}
+    });
+  }
 
   apply();
 })();
@@ -831,6 +983,10 @@ ZOOM_JS = r"""
 
 def render_explorer(points: list, data=None) -> str:
     floods = sejong_map.load_floods()
+    # 배경지도 설정은 JS 가 읽는다. 여기서 한 번만 심는다.
+    base_js = ('<script>window.__SWBASE=%s;</script>'
+               % json.dumps(basemap_config((data or {}).get("site")),
+                            ensure_ascii=False))
     if not points:
         # 관측지점이 없어도 행정구역·하천수계는 보여준다. 지도까지 사라지면
         # 화면이 통째로 비어 무엇이 잘못됐는지 알 수 없다.
@@ -839,8 +995,9 @@ def render_explorer(points: list, data=None) -> str:
                 '<span class="src">행정구역 · 하천수계</span></h2>%s%s'
                 '<p class="note" style="margin:11px 0 0">관측지점이 없습니다. '
                 '인증키를 넣으면 수위·강수·수질·지하수 지점이 이 지도에 표시됩니다.</p>'
-                '</section></div>'
-                % (render_maptools(floods, data), sejong_map.render([])))
+                '</section></div>%s<script>%s</script>'
+                % (render_maptools(floods, data), sejong_map.render([]),
+                   base_js, ZOOM_JS))
 
     listing = []
     # 물이 흐르는 순서대로 — 비가 와서(강수), 댐이 방류하고, 하천 수위가 오르고,
@@ -907,10 +1064,10 @@ def render_explorer(points: list, data=None) -> str:
             'g.classList.toggle("open",!!st[g.dataset.grp]);'
             'g.querySelector(".grphead").setAttribute("aria-expanded",String(!!st[g.dataset.grp]));'
             '});}catch(e){}'
-            'sel(first);})();</script><script>%s</script>'
+            'sel(first);})();</script>%s<script>%s</script>'
             % ("".join(listing), render_maptools(floods, data),
                sejong_map.render(points), payload,
-               json.dumps(points[0]["id"]), ZOOM_JS))
+               json.dumps(points[0]["id"]), base_js, ZOOM_JS))
 
 WQ_COLUMNS = [("수온", "temp", 1, "℃"), ("pH", "ph", 2, ""), ("DO", "do", 2, ""),
               ("TOC", "toc", 1, ""), ("BOD", "bod", 1, ""), ("전기전도도", "cond", 0, ""),
@@ -1203,6 +1360,17 @@ def render_freshness(data: dict) -> str:
             '</span></div>' % chips)
 
 
+HITS_JS = r"""
+(function(){
+  var img=document.querySelector('.hitsbadge'); if(!img) return;
+  // 집계 서버가 죽거나 폐쇄망이면 깨진 그림 아이콘이 남는다. 조용히 접는다.
+  img.addEventListener('error', function(){
+    var box = img.parentElement;
+    if (box) box.style.display = 'none';
+  });
+})();
+"""
+
 COUNTER_JS = r"""
 (function(){
   var box=document.getElementById('visitors'); if(!box) return;
@@ -1283,9 +1451,13 @@ def render_counter(site: dict) -> str:
                "&label=%s&color=0ea5e9&labelColor=64748b"
                % (urllib.parse.quote(target, safe="/"),
                   urllib.parse.quote(label)))
+        # loading="lazy" 를 쓰면 안 된다. 이 배지는 긴 페이지 맨 아래에 있어서
+        # 스크롤이 닿기 전에는 요청조차 나가지 않는다. 그 상태로 화면을 갈무리하거나
+        # 통째로 렌더하는 뷰어에서는 '깨진 그림'으로 보인다. 600바이트 SVG 하나다.
         return ('<div class="visitors"><img class="hitsbadge" src="%s" '
-                'alt="%s 오늘/전체" height="20" loading="lazy">'
-                '<span class="vsub">오늘 / 전체</span></div>' % (esc(src), esc(label)))
+                'alt="%s 오늘/전체" height="20" decoding="async">'
+                '<span class="vsub">오늘 / 전체</span></div><script>%s</script>'
+                % (esc(src), esc(label), HITS_JS))
 
     payload = json.dumps({k: v for k, v in counter.items() if k != "provider"}
                          | {"provider": provider}, ensure_ascii=False)

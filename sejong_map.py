@@ -244,7 +244,10 @@ def render(points, width=560, height=None) -> str:
                 % "".join('<path d="%s"/>' % _path(projection, r) for r in outline))
         clip_ref = ' clip-path="url(#cityclip)"'
 
-    layers = []
+    # 0) 배경지도 자리 — 비워 둔다. 칩을 켜면 JS 가 여기에 타일 <image> 를 채운다.
+    #    타일을 HTML 에 구워 넣지 않는 이유: 켜지 않으면 바깥으로 요청이 한 번도
+    #    나가지 않아야 하고, 배율에 맞는 타일 레벨은 볼 때가 되어야 정해지기 때문이다.
+    layers = ['<g class="basemap" aria-hidden="true"></g>']
 
     # 1) 행정동 면
     dong_paths, dong_labels = [], []
@@ -257,9 +260,10 @@ def render(points, width=560, height=None) -> str:
                                         extra=' text-anchor="middle"'))
     if dong_paths:
         # 색은 CSS(.map .dongs)가 잡는다 — 라이트/다크에 따라 달라져야 하므로.
-        layers.append('<g class="dongs" stroke-width="%.2f" stroke-linejoin="round" '
-                      'vector-effect="non-scaling-stroke">%s</g>'
-                      % (0.8 * scale, "".join(dong_paths)))
+        # 굵기도 CSS 변수로 넘긴다(--aw × --zw). vector-effect 는 여기 걸지 않는다 —
+        # 상속되지 않아서 그룹에 적어 봐야 아무 일도 일어나지 않는다.
+        layers.append('<g class="dongs" style="--aw:%.2f" stroke-linejoin="round">'
+                      '%s</g>' % (0.8 * scale, "".join(dong_paths)))
 
     # 2) 침수·범람 오버레이 — 기본 숨김. 지도 위 토글이 켠다.
     floods = load_floods()
@@ -308,8 +312,7 @@ def render(points, width=560, height=None) -> str:
     # 4) 시 외곽선
     for ring in outline:
         layers.append('<path class="cityline" d="%s" fill="none" '
-                      'stroke-width="%.2f" stroke-linejoin="round" '
-                      'vector-effect="non-scaling-stroke"/>'
+                      'style="--cw:%.2f" stroke-linejoin="round"/>'
                       % (_path(projection, ring), 1.8 * scale))
 
     # 5) 이름
@@ -399,6 +402,19 @@ def render(points, width=560, height=None) -> str:
         footnote += ('<text x="14" y="%d" fill="#8b949e" font-size="10">'
                      '좌표 없는 %d개소는 왼쪽 목록에만 표시</text>' % (height - 28, missing))
 
-    return ('<svg class="map" viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg">'
-            '%s%s%s%s%s</svg>'
-            % (width, height, defs, zoomable, legend, scalebar, footnote))
+    # 배경지도 타일을 제자리에 놓으려면 JS 도 이 투영을 그대로 계산할 수 있어야 한다.
+    #   x = offx + (lon - lon0) * kx * scale
+    #   y = offy + (lat1 - lat) * scale
+    projected = (' data-lon0="%.6f" data-lat1="%.6f" data-kx="%.8f" '
+                 'data-scale="%.4f" data-offx="%.3f" data-offy="%.3f"'
+                 % (projection.lon0, projection.lat1, projection.k,
+                    projection.scale, projection.off_x, projection.off_y))
+
+    credit = ('<text class="basemap-credit" x="14" y="%d" font-size="10.5">'
+              '배경지도 © OpenStreetMap 기여자</text>' % (height - 28))
+
+    return ('<svg class="map" viewBox="0 0 %d %d"%s '
+            'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '%s%s%s%s%s%s</svg>'
+            % (width, height, projected, defs, zoomable, legend, scalebar,
+               footnote, credit))

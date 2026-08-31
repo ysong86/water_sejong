@@ -482,8 +482,26 @@ header.top .sub {
 }
 .map:active { cursor: grabbing; }
 
+/* 확대 보정 두 가지. JS 가 배율(k)에 맞춰 넣는다.
+     --zw  굵기 계수 (k^0.22, 최대 1.5)   --zo  진하기 계수 (1 -> 0.42)
+   확대할수록 선은 거의 그대로 두고 색을 뺀다. 좁은 구역을 크게 볼 때 주인공은
+   그 안의 관측지점과 배경지도이지 하천선 자체가 아니기 때문이다. */
+.map { --zw: 1; --zo: 1; }
+
+/* **vector-effect 는 상속되지 않는다.** 그룹(<g>)에 걸어 두면 아무 일도
+   일어나지 않아 선이 배율만큼 그대로 굵어진다. 그리는 요소마다 걸어야 한다. */
+.map .dongs path,
+.map .cityline,
+.map .rv .ln,
+.map .rv .hit,
+.map .flood path { vector-effect: non-scaling-stroke; }
+
 .map .dongs { fill: var(--map-land); stroke: var(--map-line); }
-.map .cityline { stroke: var(--map-city); }
+.map .dongs path { stroke-width: calc(var(--aw, 0.8) * var(--zw)); }
+.map .cityline {
+  stroke: var(--map-city);
+  stroke-width: calc(var(--cw, 1.8) * var(--zw));
+}
 .map .dongname { fill: var(--map-label); }
 .map .rvlabel { fill: var(--river-label); }
 .map .legend { fill: var(--fg-2); }
@@ -498,12 +516,29 @@ header.top .sub {
 .map .footnote { fill: var(--muted); }
 .map .flood { display: none; }
 
+/* 배경지도 — 칩을 켜야 타일을 받아온다(기본은 바깥 요청 없음).
+   채도를 낮추고 흐리게 깔아 그 위의 관측지점·하천이 묻히지 않게 한다. */
+.map .basemap { display: none; }
+.map.has-base .basemap { display: block; opacity: .78; filter: saturate(.55); }
+[data-theme="dark"] .map.has-base .basemap {
+  opacity: .62; filter: invert(1) hue-rotate(180deg) saturate(.45) brightness(.92);
+}
+/* 배경을 깔면 행정동 면은 비우고 경계선만 진하게 올린다. */
+.map.has-base .dongs { fill: none; }
+.map.has-base .dongs path {
+  stroke: var(--map-city);
+  stroke-width: calc(var(--aw, 0.8) * var(--zw) * 1.4);
+}
+.map .basemap-credit { fill: var(--muted); display: none; }
+.map.has-base .basemap-credit { display: block; }
+
 .map .rv .hit {
   fill: none; stroke: transparent; stroke-width: var(--hit);
   stroke-linecap: round; pointer-events: stroke;
 }
+.map .rivers { opacity: var(--zo); }
 .map .rv .ln {
-  fill: none; stroke-width: var(--w);
+  fill: none; stroke-width: calc(var(--w) * var(--zw));
   stroke-linecap: round; stroke-linejoin: round;
   pointer-events: none;
   transition: stroke-width .14s ease, stroke .14s ease;
@@ -511,7 +546,9 @@ header.top .sub {
 .map .rv[data-cls="main"] .ln { stroke: var(--river-main); }
 .map .rv[data-cls="major"] .ln { stroke: var(--river-major); }
 .map .rv[data-cls="stream"] .ln { stroke: var(--river-stream); }
-.map .rv:hover .ln { stroke-width: var(--wh); stroke: var(--river-hover); }
+.map .rv:hover .ln {
+  stroke-width: calc(var(--wh) * var(--zw)); stroke: var(--river-hover);
+}
 .map .rv .rvname {
   fill: var(--river-label); font-size: 15px; font-weight: 700;
   opacity: 0; pointer-events: none;
