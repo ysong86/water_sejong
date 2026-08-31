@@ -838,19 +838,29 @@ def render_explorer(points: list) -> str:
                 % (render_maptools(floods), sejong_map.render([])))
 
     listing = []
-    for group in ("하천 수위", "보", "댐(선행지표)", "강수량", "수질", "지하수"):
+    # 물이 흐르는 순서대로 — 비가 와서(강수), 댐이 방류하고, 하천 수위가 오르고,
+    # 보를 지나, 수질로 나타난다. 지하수는 별개 축이라 끝에 둔다.
+    first_id = points[0]["id"] if points else ""
+    for group in ("강수량", "댐(선행지표)", "하천 수위", "보", "수질", "지하수"):
         members = [p for p in points if p["group"] == group]
         if not members:
             continue
-        listing.append("<h3>%s <span style=\"opacity:.6\">%d</span></h3>"
-                       % (esc(group), len(members)))
-        for point in members:
-            listing.append(
-                '<button class="pick" data-id="%s" type="button">'
-                '<span class="%s" style="background:%s"></span>'
-                '<span class="nm">%s</span><span class="vv">%s</span></button>'
-                % (point["id"], DOT_CLASS[point["kind"]], point["color"],
-                   esc(point["name"]), esc(point["value"])))
+        rows = "".join(
+            '<button class="pick" data-id="%s" type="button">'
+            '<span class="%s" style="background:%s"></span>'
+            '<span class="nm">%s</span><span class="vv">%s</span></button>'
+            % (point["id"], DOT_CLASS[point["kind"]], point["color"],
+               esc(point["name"]), esc(point["value"])) for point in members)
+        # 처음 선택된 지점이 든 묶음만 펼친 채로 시작한다
+        opened = any(p["id"] == first_id for p in members)
+        listing.append(
+            '<div class="grp%s" data-grp="%s">'
+            '<button class="grphead" type="button" aria-expanded="%s">'
+            '<span class="tw"></span><span class="gn">%s</span>'
+            '<span class="gc">%d</span></button>'
+            '<div class="grpbody">%s</div></div>'
+            % (" open" if opened else "", esc(group), "true" if opened else "false",
+               esc(group), len(members), rows))
 
     details = {p["id"]: p["detail"] for p in points}
     payload = json.dumps(details, ensure_ascii=False).replace("</", "<\\/")
@@ -867,7 +877,10 @@ def render_explorer(points: list) -> str:
             'function sel(id){if(!D[id])return;'
             'document.getElementById("detail").innerHTML=D[id];'
             'document.querySelectorAll(".pick").forEach(function(b){'
-            'b.classList.toggle("sel",b.dataset.id===id)});'
+            'var on=b.dataset.id===id;b.classList.toggle("sel",on);'
+            'if(on){var g=b.closest(".grp");'
+            'if(g&&!g.classList.contains("open")){g.classList.add("open");'
+            'g.querySelector(".grphead").setAttribute("aria-expanded","true");}}});'
             'document.querySelectorAll(".map .mk").forEach(function(m){'
             'm.classList.toggle("sel",m.dataset.id===id)});}'
             'document.querySelectorAll(".pick").forEach(function(b){'
@@ -876,6 +889,19 @@ def render_explorer(points: list) -> str:
             'm.addEventListener("click",function(){sel(m.dataset.id)});'
             'm.addEventListener("keydown",function(e){'
             'if(e.key==="Enter"||e.key===" "){e.preventDefault();sel(m.dataset.id)}})});'
+            'document.querySelectorAll(".grphead").forEach(function(h){'
+            'h.addEventListener("click",function(){'
+            'var g=h.parentElement;var open=g.classList.toggle("open");'
+            'h.setAttribute("aria-expanded",String(open));'
+            'try{var k="sw-groups";var st=JSON.parse(localStorage.getItem(k)||"{}");'
+            'st[g.dataset.grp]=open;localStorage.setItem(k,JSON.stringify(st));}catch(e){}'
+            '})});'
+            'try{var st=JSON.parse(localStorage.getItem("sw-groups")||"{}");'
+            'document.querySelectorAll(".grp").forEach(function(g){'
+            'if(st[g.dataset.grp]===undefined)return;'
+            'g.classList.toggle("open",!!st[g.dataset.grp]);'
+            'g.querySelector(".grphead").setAttribute("aria-expanded",String(!!st[g.dataset.grp]));'
+            '});}catch(e){}'
             'sel(first);})();</script><script>%s</script>'
             % ("".join(listing), render_maptools(floods),
                sejong_map.render(points), payload,
@@ -1385,14 +1411,20 @@ def render(data: dict) -> str:
         '<div class="v">%s</div><div class="s">%s</div></div>'
         % (k["color"], esc(k["label"]), esc(k["value"]), esc(k["sub"])) for k in summarize(data))
 
-    # 홍수예보 발령 — 있으면 화면 맨 위. 평시에는 비어 있다.
-    forecasts = (data.get("hrfco") or {}).get("forecast") or []
+    # 홍수예보 발령 — 당일 것만. 지난 날짜까지 쌓이면 지금 상황인지 알 수 없다.
+    # 전국 발령현황이라 세종과 무관한 지역도 섞인다(제목에 밝힌다).
+    today = (_parse_stamp(data.get("generated_at")) or now_kst()).strftime("%Y%m%d")
+    forecasts = [f for f in ((data.get("hrfco") or {}).get("forecast") or [])
+                 if str(f.get("time") or "")[:8] == today]
+    forecasts.sort(key=lambda f: str(f.get("time") or ""), reverse=True)
     if forecasts:
         items = "".join(
-            "<li><b>%s</b> %s <span style=\"opacity:.75\">%s</span></li>"
-            % (esc(f.get("kind") or "홍수예보"), esc(f.get("area")),
+            '<li%s><b>%s</b> %s <span style="opacity:.75">%s</span></li>'
+            % (' class="lifted"' if "해제" in (f.get("kind") or "") else "",
+               esc(f.get("kind") or "홍수예보"), esc(f.get("area")),
                esc(hhmm(f.get("time")))) for f in forecasts)
-        flood_alert = ('<div class="alerts"><h3>홍수예보 발령</h3>'
+        flood_alert = ('<div class="alerts"><h3>홍수예보 발령 '
+                       '<span style="font-weight:400;font-size:11px">전국 · 오늘</span></h3>'
                        '<ul style="margin:0;padding-left:18px">%s</ul></div>' % items)
     else:
         flood_alert = ""

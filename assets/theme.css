@@ -390,15 +390,38 @@ header.top .sub {
 .explorer.nodata .map { max-height: min(78vh, 820px); }
 
 .side { max-height: min(78vh, 760px); overflow-y: auto; scrollbar-width: thin; }
-.side h3 {
-  margin: 15px 0 6px;
-  font-size: 10.5px;
-  color: var(--muted);
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  font-weight: 700;
+/* 관측지점 묶음 — +/- 로 접고 편다 */
+.grp + .grp { margin-top: 3px; }
+.grphead {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: transparent; border: 0; cursor: pointer; color: var(--fg-2);
+  font: inherit; font-size: 12px; font-weight: 700; text-align: left;
+  padding: 7px 8px; border-radius: var(--r-sm);
+  transition: background .14s ease;
 }
-.side h3:first-of-type { margin-top: 8px; }
+.grphead:hover { background: var(--panel-2); }
+.grphead .tw {
+  flex: none; width: 15px; height: 15px; border-radius: 4px;
+  border: 1px solid var(--line); position: relative;
+  background: var(--panel-2);
+}
+.grphead .tw::before, .grphead .tw::after {
+  content: ""; position: absolute; background: var(--fg-2);
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+}
+.grphead .tw::before { width: 7px; height: 1.5px; }
+.grphead .tw::after  { width: 1.5px; height: 7px; transition: opacity .14s ease; }
+.grp.open .grphead .tw::after { opacity: 0; }          /* 펼치면 + 가 - 로 */
+.grphead .gn { flex: 1; }
+.grphead .gc {
+  color: var(--muted); font-weight: 600; font-size: 11px;
+  background: var(--panel-2); border-radius: 999px; padding: 1px 8px;
+}
+.grpbody { display: none; padding: 2px 0 6px 4px; }
+.grp.open .grpbody { display: block; }
+
+.alerts li.lifted { opacity: .55; }
+.alerts li.lifted b { font-weight: 600; }
 
 .pick {
   display: flex;
