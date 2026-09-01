@@ -230,6 +230,43 @@ C:/Python313/python.exe run.py --probe --only gims --url "<복사한 요청주�
 이유가 그것이다. `clinic_keywords` 를 `["산부인과"]` 나 `["정신건강"]` 로 바꾸면
 다른 과를 볼 수 있다.
 
+### 실측 연결하기
+
+1. <https://www.data.go.kr> 로그인 → 아래 둘을 **활용신청**한다. 자동승인이라 보통
+   몇 분 안에 쓸 수 있다.
+   - `15000563` 국립중앙의료원_전국 응급의료기관 정보조회 서비스 (응급실 병상)
+   - `15000576` 국립중앙의료원_전국 병의원 및 약국 찾기 서비스 (진료시간)
+2. 마이페이지 → 오픈API → 인증키를 복사해 `config.json` 의 `nemc.key` 에 넣는다.
+   Encoding / Decoding 어느 쪽이든 동작한다. `nier` 와 같은 계정이면 같은 키다.
+3. 타진해서 필드부터 확인한다.
+
+```bash
+C:/Python313/python.exe run.py --probe --only nemc
+```
+
+   네 오퍼레이션의 응답 건수와 함께 이런 진단이 찍힌다.
+
+```
+[OK]   getEmrrmRltmUsefulSckbdInfoInqire - 3건
+       · 가용 병상 필드 5개: hv6, hvec, hvgc, hvicc, hvoc
+       · 기준 병상 필드 2개: hvs01, hvs02
+       · 아직 짝을 안 지은 기준 필드: hvs02
+       · 최신 입력시각 20260902141200 (기관 3곳)
+[OK]   getParmacyListInfoInqire - 214건
+       · 진료시간으로 개폐를 판정할 수 있는 곳 209 / 214
+```
+
+4. 짝을 안 지은 기준 필드가 있으면 포털 상세명세에서 뜻을 확인해 `nemc.beds` 에
+   넣는다. 안 넣어도 동작하며, 그 항목은 비율 없이 가용 수만 나온다.
+5. `config` 의 `site.pending` 에서 `emergency` 를 뺀다. 자료가 들어오는데도
+   '업데이트 예정'으로 남아 있으면 안 된다.
+6. `run.py --collect` 로 실측 확인.
+
+**응답이 안 오면** — 이 API 는 국내 IP 에서만 확인했다. 해외 IP·클라우드에서는
+막힐 수 있으니 수집 PC 에서 실행할 것. 인증키 오류는 XML(`returnAuthMsg`)로 오고,
+그 문구가 화면의 **수집 경고**에 그대로 뜬다(`SERVICE_KEY_IS_NOT_REGISTERED_ERROR`
+는 활용신청이 아직 승인 전이라는 뜻이다).
+
 ### 병상 필드
 
 `hvec`(응급실 일반 가용) / `hvs01`(기준) 짝만 확실해서 이 항목만 비율과 혼잡도를
@@ -248,6 +285,13 @@ C:/Python313/python.exe run.py --probe --only nemc
   ["hv6",  "hvs02", "소아 응급"]
 ]
 ```
+
+### 전량을 받는다
+
+세종 병의원은 한 페이지(300건)를 넘는다. 한 페이지만 받으면 「문 연 곳 18 / 전체
+214」의 **분모가 조용히 잘린다.** `totalCount` 를 보고 다 받을 때까지 페이지를
+넘기되, 응답이 이상해 끝나지 않는 경우에 대비해 `nemc.max_pages`(기본 12)로
+상한을 둔다.
 
 ### 왜 XML 인가
 

@@ -120,6 +120,8 @@ def probe(cfg: dict, only=None, url=None, save=False) -> int:
                 filled = {k: v for k, v in (report["sample"] or {}).items()
                           if v is not None}
                 print("         예: %s" % json.dumps(filled, ensure_ascii=False)[:180])
+                for note in report.get("notes") or []:
+                    print("         · %s" % note)
                 winner = winner or report["url"]
             else:
                 print("  [--]   %s - %s"

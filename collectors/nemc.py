@@ -50,6 +50,11 @@ DEFAULT_BEDS = [
     ["hvncc", None, "신생아 중환자"],
 ]
 
+# hv 로 시작하지만 병상이 아닌 필드. hvidate 는 14자리 관측시각이라 숫자로 읽혀
+# 그냥 두면 병상 후보로 잡힌다.
+NON_BED_FIELDS = {"hvidate"}
+
+
 # 응급실 혼잡도 — 가용/기준. 기준 병상을 모르면 색을 칠하지 않는다.
 def bed_state(free, total):
     if free is None:
@@ -71,8 +76,8 @@ def _service_key(key: str) -> str:
     return key if "%" in key else urllib.parse.quote(key, safe="")
 
 
-def _rows(text: str) -> list[dict]:
-    """JSON 이든 XML 이든 item 목록을 dict 리스트로."""
+def _parse(text: str) -> tuple[list[dict], int | None]:
+    """JSON 이든 XML 이든 (item 목록, totalCount) 로. totalCount 는 없으면 None."""
     stripped = (text or "").lstrip()
     if not stripped:
         raise CollectError("응답이 비어 있습니다.")
@@ -80,15 +85,19 @@ def _rows(text: str) -> list[dict]:
     if stripped[0] in "{[":
         import json
         payload = json.loads(stripped)
-        node = payload
-        for step in ("response", "body", "items"):
-            if isinstance(node, dict) and step in node:
-                node = node[step]
+        body = payload
+        for step in ("response", "body"):
+            if isinstance(body, dict) and step in body:
+                body = body[step]
+        total = None
+        if isinstance(body, dict):
+            total = int(to_float(body.get("totalCount")) or 0) or None
+        node = body.get("items") if isinstance(body, dict) else body
         if isinstance(node, dict):
             node = node.get("item", [])
         if isinstance(node, dict):
-            return [node]
-        return node if isinstance(node, list) else []
+            node = [node]
+        return (node if isinstance(node, list) else []), total
 
     try:
         root = ET.fromstring(stripped)
@@ -108,14 +117,35 @@ def _rows(text: str) -> list[dict]:
             row[child.tag] = (child.text or "").strip()
         if row:
             rows.append(row)
-    return rows
+    total = int(to_float(root.findtext(".//totalCount")) or 0) or None
+    return rows, total
+
+
+def _rows(text: str) -> list[dict]:
+    return _parse(text)[0]
 
 
 def query(url: str, key: str, params: dict, cfg: dict | None = None) -> list[dict]:
-    merged = {"serviceKey": _service_key(key), "pageNo": 1,
-              "numOfRows": int((cfg or {}).get("num_rows", 300))}
-    merged.update(params)
-    return _rows(http_get(url, merged, timeout=30))
+    """전량을 받는다. 한 페이지만 받으면 '문 연 곳 N / 전체 M' 의 M 이 조용히 잘린다.
+
+    세종 병의원은 한 페이지(300건)를 넘는다. totalCount 를 보고 다 받을 때까지
+    페이지를 넘기되, 응답이 이상해 끝나지 않는 경우에 대비해 상한을 둔다.
+    """
+    cfg = cfg or {}
+    size = int(cfg.get("num_rows", 300))
+    max_pages = int(cfg.get("max_pages", 12))
+
+    collected, total, page = [], None, 1
+    while page <= max_pages:
+        merged = {"serviceKey": _service_key(key), "pageNo": page, "numOfRows": size}
+        merged.update(params)
+        rows, reported = _parse(http_get(url, merged, timeout=30))
+        collected.extend(rows)
+        total = total if reported is None else reported
+        if len(rows) < size or (total is not None and len(collected) >= total):
+            break
+        page += 1
+    return collected
 
 
 # --------------------------------------------------------------------------- 진료시간
@@ -276,15 +306,79 @@ def collect(key: str, cfg: dict) -> dict:
 PROBE_URLS = [ER_BEDS, ER_LIST, PHARMACY, CLINIC]
 
 
+def _filled(rows: list[dict], prefix: str) -> list[str]:
+    """값이 실제로 들어 있는 필드만. 빈 문자열로 오는 필드가 많아 존재만으로는 못 믿는다."""
+    found = set()
+    for row in rows:
+        for field, value in row.items():
+            if (field.startswith(prefix) and field not in NON_BED_FIELDS
+                    and to_float(value) is not None):
+                found.add(field)
+    return sorted(found)
+
+
+def _diagnose(url: str, rows: list[dict]) -> list[str]:
+    """타진 결과를 사람이 바로 쓸 수 있는 말로. 병상 필드 짝맞추기가 핵심이다."""
+    if not rows:
+        return []
+    notes = []
+
+    if url == ER_BEDS:
+        free_fields = [f for f in _filled(rows, "hv") if not f.startswith("hvs")]
+        total_fields = _filled(rows, "hvs")
+        known = {spec[0] for spec in DEFAULT_BEDS}
+        paired = {spec[1] for spec in DEFAULT_BEDS if spec[1]}
+
+        notes.append("가용 병상 필드 %d개: %s" % (len(free_fields), ", ".join(free_fields)))
+        notes.append("기준 병상 필드 %d개: %s"
+                     % (len(total_fields), ", ".join(total_fields) or "없음"))
+
+        missing = [f for f in known if f not in free_fields]
+        if missing:
+            notes.append("기본값에 있으나 이 응답엔 없는 필드: %s (그 항목은 화면에서 빠집니다)"
+                         % ", ".join(sorted(missing)))
+        spare = [f for f in total_fields if f not in paired]
+        if spare:
+            notes.append("아직 짝을 안 지은 기준 필드: %s" % ", ".join(spare))
+            notes.append("포털 명세에서 뜻을 확인해 config 의 nemc.beds 에 "
+                         "[\"가용필드\", \"기준필드\", \"라벨\"] 로 넣으면 비율과 혼잡도가 나옵니다.")
+        extra = [f for f in free_fields if f not in known]
+        if extra:
+            notes.append("기본값에 없는 가용 필드: %s" % ", ".join(extra))
+
+        stamps = [r.get("hvidate") for r in rows if r.get("hvidate")]
+        if stamps:
+            notes.append("최신 입력시각 %s (기관 %d곳)" % (max(stamps), len(rows)))
+
+    elif url in (PHARMACY, CLINIC):
+        judged = sum(1 for r in rows if open_now(r) is not None)
+        notes.append("진료시간으로 개폐를 판정할 수 있는 곳 %d / %d" % (judged, len(rows)))
+        if judged < len(rows):
+            notes.append("나머지는 진료시간이 비어 있어 '시간미상'으로 따로 셉니다.")
+        if url == CLINIC:
+            notes.append("이 목록 전체에서 진료과 낱말로 거릅니다. "
+                         "config 의 nemc.clinic_keywords 로 바꿉니다.")
+
+    elif url == ER_LIST:
+        located = sum(1 for r in rows if to_float(r.get("wgs84Lon")) is not None)
+        notes.append("좌표가 있는 기관 %d / %d" % (located, len(rows)))
+    return notes
+
+
 def probe_one(url: str, key: str, cfg: dict) -> dict:
     sido = cfg.get("sido") or "세종특별자치시"
     params = {"STAGE1": sido} if "Sckbd" in url else {"Q0": sido}
+    sigungu = (cfg.get("sigungu") or "").strip()
+    if sigungu:
+        params["STAGE2" if "Sckbd" in url else "Q1"] = sigungu
     try:
         rows = query(url, key, params, cfg)
         return {"url": url, "ok": bool(rows), "count": len(rows),
-                "sample": rows[0] if rows else None, "error": None}
+                "sample": rows[0] if rows else None, "error": None,
+                "notes": _diagnose(url, rows)}
     except CollectError as exc:
-        return {"url": url, "ok": False, "count": 0, "sample": None, "error": str(exc)}
+        return {"url": url, "ok": False, "count": 0, "sample": None,
+                "error": str(exc), "notes": []}
 
 
 def probe(key: str, cfg: dict) -> list[dict]:
