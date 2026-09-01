@@ -71,7 +71,8 @@ def stamp(dt: datetime | None = None) -> str:
 
 # 섹션별 인증키를 넣을 수 있는 환경변수. CI(깃허브 액션)에서 Secrets 를 이렇게 넘긴다.
 KEY_ENV = {"hrfco": "HRFCO_KEY", "kma": "KMA_KEY",
-           "nier": "NIER_KEY", "gims": "GIMS_KEY", "nierstat": "NIER_KEY"}
+           "nier": "NIER_KEY", "gims": "GIMS_KEY", "nierstat": "NIER_KEY",
+           "nemc": "NEMC_KEY"}
 
 
 def load_config(path=None) -> dict:

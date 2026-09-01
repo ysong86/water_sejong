@@ -10,7 +10,7 @@ import math
 import random
 from datetime import timedelta
 
-from . import selfsuff
+from . import nemc, selfsuff
 from .common import now_kst
 
 SEED = 20260828
@@ -160,4 +160,63 @@ def build(hours: int = 24) -> dict:
         },
         # 자족도시 지표는 표본 파일(data/selfsuff.example.json)로 화면만 보여준다.
         "selfsuff": selfsuff.collect({"use_example": True}),
+        "nemc": _medical(now),
     }
+
+
+# 응급의료 표본. 기관명은 세종 실재 기관을 본떴으나 병상 수는 합성값이다.
+_ER_SAMPLE = [
+    ("세종충남대학교병원", "044-995-4000", 14, 40, 62, 5, 9, 3),
+    ("세종특별자치시 세종의료원", "044-260-1000", 6, 18, 31, 2, 4, None),
+    ("엔케이세종병원", "044-865-1000", 1, 12, 8, 1, None, None),
+]
+
+_PHARMACY_SAMPLE = [
+    ("보람온누리약국", "세종특별자치시 보람동", "0900", "2400"),
+    ("도담365약국", "세종특별자치시 도담동", "0000", "2400"),
+    ("아름메디컬약국", "세종특별자치시 아름동", "0900", "1900"),
+    ("조치원행복약국", "세종특별자치시 조치원읍", "0830", "1830"),
+    ("새롬중앙약국", "세종특별자치시 새롬동", "0900", "2200"),
+    ("한솔온약국", "세종특별자치시 한솔동", "1000", "1700"),
+]
+
+_PEDIATRIC_SAMPLE = [
+    ("세종아이사랑소아청소년과의원", "세종특별자치시 새롬동", "0900", "2100"),
+    ("도담소아청소년과의원", "세종특별자치시 도담동", "0900", "1800"),
+    ("고운튼튼소아청소년과의원", "세종특별자치시 고운동", "0930", "1830"),
+    ("조치원소아청소년과의원", "세종특별자치시 조치원읍", "0900", "1730"),
+]
+
+
+def _hours(rows, when):
+    """표본 목록을 API 응답과 같은 꼴(dutyTimeNs/Nc)로 바꾼다."""
+    slot = nemc._WEEKDAY_FIELD[when.weekday()]
+    out = []
+    for name, addr, start, close in rows:
+        out.append({"dutyName": name, "dutyAddr": addr,
+                    "dutyTime%ds" % slot: start, "dutyTime%dc" % slot: close})
+    return out
+
+
+def _medical(now):
+    beds = [("hvec", "hvs01", "응급실 일반"), ("hvgc", None, "입원실"),
+            ("hvoc", None, "수술실"), ("hvicc", None, "일반 중환자"),
+            ("hvncc", None, "신생아 중환자")]
+    rows = []
+    for name, tel, free, total, ward, surgery, icu, nicu in _ER_SAMPLE:
+        row = {"hpid": name, "dutyName": name, "dutyTel3": tel,
+               "hvidate": (now - timedelta(minutes=8)).strftime("%Y%m%d%H%M00"),
+               "hvec": free, "hvs01": total, "hvgc": ward, "hvoc": surgery}
+        if icu is not None:
+            row["hvicc"] = icu
+        if nicu is not None:
+            row["hvncc"] = nicu
+        rows.append(row)
+
+    result = {"sido": "세종특별자치시", "errors": [],
+              "er": nemc._er(rows, {}, beds)}
+    result["observed"] = max(e["observed"] for e in result["er"])
+    result["pharmacy"] = nemc._open_list(_hours(_PHARMACY_SAMPLE, now), now)
+    result["pediatric"] = nemc._open_list(_hours(_PEDIATRIC_SAMPLE, now), now)
+    result["pediatric"]["keywords"] = ["소아청소년"]
+    return result
