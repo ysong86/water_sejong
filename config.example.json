@@ -156,6 +156,13 @@
     ],
     "extra_params": {}
   },
+  "selfsuff": {
+    "_안내": "자족도시 지표. 인증키가 필요 없다. data/selfsuff.json 의 수치를 읽어 계산만 한다.",
+    "_채우는법": "data/selfsuff.example.json 을 data/selfsuff.json 으로 복사한 뒤 KOSIS 에서 확인한 통근통학·취업자·종사자수를 연도별로 적는다. 파일 안 _받는곳 에 통계표 위치가 적혀 있다.",
+    "file": "selfsuff.json",
+    "use_example": false,
+    "_표본": "use_example 을 true 로 두면 selfsuff.json 이 없을 때 표본 파일로 화면을 그린다. 화면에 '표본값' 배지가 붙는다."
+  },
   "deploy": {
     "_안내": "NAS 등에서 git 없이 GitHub Contents API 로 올릴 때 쓴다. tools/publish_nas.py 참고.",
     "_토큰": "https://github.com/settings/tokens?type=beta 에서 water_sejong 저장소에 Contents=Read and write 권한만. 환경변수 GITHUB_TOKEN 으로 줘도 된다.",

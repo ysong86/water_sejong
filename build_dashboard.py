@@ -14,6 +14,7 @@ import urllib.parse
 from datetime import datetime
 
 import sejong_map
+from collectors import selfsuff
 from collectors.common import BASE_DIR, KST, now_kst, stamp
 
 OUT_PATH = os.path.join(BASE_DIR, "dashboard.html")
@@ -1237,6 +1238,7 @@ VIEW_SECTIONS = [
     ("quality", "수질 전 지점"),
     ("weather", "기상"),
     ("pollution", "오염원 통계"),
+    ("selfsuff", "자족도시"),
 ]
 
 VIEW_JS = r"""
@@ -1583,6 +1585,99 @@ def render_pollution(data: dict) -> str:
     return "".join(cards)
 
 
+def render_selfsuff(data: dict) -> str:
+    """자족도시 지표 — 통근·일자리로 자족성을 본다.
+
+    수질 등급과 같은 성격의 주의가 필요하다. 구간 라벨(낮음/보통/높음)은 국외
+    도시계획 관행에서 가져온 참고선이지 법정 기준이 아니다. 화면에도 밝힌다.
+    """
+    stat = data.get("selfsuff") or {}
+    if not stat.get("year"):
+        reason = (stat.get("errors") or ["자족도시 지표 자료가 없습니다."])[0]
+        return ('<div class="empty"><b>%s</b> — %s</div>'
+                % (PENDING_NOTE, esc(reason)))
+
+    values = stat.get("values") or {}
+    trend = stat.get("trend") or []
+
+    cards = []
+    for spec in selfsuff.INDICATORS:
+        value = values.get(spec["id"])
+        label, token = selfsuff.band(spec, value)
+        color = "var(%s)" % token
+        series = [{"v": row["values"].get(spec["id"])} for row in trend]
+        cards.append(
+            '<div class="sscard" style="--c:%s" title="%s">'
+            '<div class="ss-l">%s</div>'
+            '<div class="ss-v">%s<span class="ss-u">%s</span></div>'
+            '<div class="ss-band">%s</div>'
+            '%s'
+            '<div class="ss-d">%s</div></div>'
+            % (color, esc("%s — %s" % (spec["formula"], spec["desc"])),
+               esc(spec["label"]), fmt(value, spec["digits"]), esc(spec["unit"]),
+               esc(label), sparkline(series, color, 200, 34),
+               esc(spec["formula"])))
+
+    base = stat.get("base") or {}
+    flow = ""
+    if stat.get("daytime_population") is not None:
+        flow = (
+            '<div class="ssflow">'
+            '<div class="ssf"><span class="l">상주인구</span><span class="v">%s</span></div>'
+            '<div class="ssop">−</div>'
+            '<div class="ssf out"><span class="l">유출 통근</span><span class="v">%s</span></div>'
+            '<div class="ssop">+</div>'
+            '<div class="ssf in"><span class="l">유입 통근</span><span class="v">%s</span></div>'
+            '<div class="ssop">=</div>'
+            '<div class="ssf big"><span class="l">주간인구</span><span class="v">%s</span></div>'
+            '</div>'
+            % (fmt(base.get("population"), 0), fmt(base.get("out_commuters"), 0),
+               fmt(base.get("in_commuters"), 0), fmt(stat.get("daytime_population"), 0)))
+
+    peers = stat.get("peers") or []
+    compare = ""
+    if peers:
+        head = "".join("<th>%s</th>" % esc(s["label"]) for s in selfsuff.INDICATORS)
+        rows = []
+        for region in [stat] + peers:
+            name = region.get("name") or region.get("region") or "—"
+            cells = []
+            for spec in selfsuff.INDICATORS:
+                value = (region.get("values") or {}).get(spec["id"])
+                _, token = selfsuff.band(spec, value)
+                cells.append('<td style="color:var(%s)">%s</td>'
+                             % (token, fmt(value, spec["digits"])))
+            rows.append('<tr%s><th class="rg">%s<span class="yr">%s</span></th>%s</tr>'
+                        % (' class="me"' if region is stat else "",
+                           esc(name), esc(region.get("year") or "—"), "".join(cells)))
+        compare = ('<div class="sscmp"><div class="ss-h">다른 도시와 비교<span class="yr">조사연도가 다를 수 있습니다</span></div>'
+                   '<table><thead><tr><th></th>%s</tr></thead><tbody>%s</tbody>'
+                   '</table></div>' % (head, "".join(rows)))
+
+    notes = []
+    if stat.get("sample"):
+        notes.append('<span class="badge demo">표본값</span> 실제 통계가 아닙니다.')
+    if stat.get("missing"):
+        notes.append("빠진 재료 — %s. 채우면 관련 지표가 함께 나옵니다."
+                     % esc(", ".join(stat["missing"])))
+    used = stat.get("sources") or {}
+    if used:
+        seen = []
+        for _, source in used.items():
+            if source not in seen:
+                seen.append(source)
+        notes.append("출처 — %s" % esc(" · ".join(seen)))
+    if stat.get("note"):
+        notes.append(esc(stat["note"]))
+    note_html = ('<div class="ssnote">%s</div>'
+                 % "<br>".join(notes)) if notes else ""
+
+    return ('<div class="ss-h">%s<span class="yr">기준 %s년</span></div>'
+            '<div class="sscards">%s</div>%s%s%s'
+            % (esc(stat.get("region") or "—"), esc(stat.get("year") or "—"),
+               "".join(cards), flow, compare, note_html))
+
+
 def render_errors(data: dict) -> str:
     buckets = [("하천/강수(HRFCO)", (data.get("hrfco") or {}).get("errors") or []),
                ("실시간 수질(국립환경과학원)", (data.get("nier") or {}).get("errors") or []),
@@ -1702,6 +1797,12 @@ def render(data: dict) -> str:
     <span class="src">국립환경과학원 시군구 통계</span></h2>
     <p class="note">연 단위 통계입니다. 실시간 값이 아닙니다.</p>
     %s</section>
+  <section class="panel wide" data-view="selfsuff"><h2>세종 자족도시 지표
+    <span class="src">통계청 통근통학 · 전국사업체조사</span></h2>
+    <p class="note">통근과 일자리로 자족성을 봅니다. 통근통학은 5년 주기 조사라
+    실시간 값이 아닙니다. 구간 라벨(낮음·보통·높음, 균형)은 영국 신도시 자족률과
+    미국 직주균형 관행에서 가져온 <b>참고선</b>이며 법정 기준이 아닙니다.</p>
+    %s</section>
 </div>
 %s
 <footer>
@@ -1719,6 +1820,7 @@ def render(data: dict) -> str:
         render_freshness(data),
         render_explorer(build_points(data), data),
         render_quality(nier), render_weather(kma), render_pollution(data),
+        render_selfsuff(data),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
         THEME_JS + VIEW_JS + CHART_JS

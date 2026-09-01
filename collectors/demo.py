@@ -10,6 +10,7 @@ import math
 import random
 from datetime import timedelta
 
+from . import selfsuff
 from .common import now_kst
 
 SEED = 20260828
@@ -157,4 +158,6 @@ def build(hours: int = 24) -> dict:
                          "pop_max": max(s["pop"] for s in slots)},
             "warnings": [], "errors": [],
         },
+        # 자족도시 지표는 표본 파일(data/selfsuff.example.json)로 화면만 보여준다.
+        "selfsuff": selfsuff.collect({"use_example": True}),
     }

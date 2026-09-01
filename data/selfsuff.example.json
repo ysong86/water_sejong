@@ -1,0 +1,52 @@
+{
+  "_주의": "표본값입니다. 실제 통계가 아닙니다. 이 파일을 selfsuff.json 으로 복사한 뒤 KOSIS 에서 확인한 수치로 바꿔 쓰십시오.",
+  "_받는곳": {
+    "통근통학": "KOSIS > 인구주택총조사 > 통근통학인구. 시도/시군구 단위로 거주지-근무지 교차표를 받으면 internal/in/out 세 값이 한 표에서 나온다. 5년 주기.",
+    "상주인구": "KOSIS > 인구주택총조사 총조사인구, 또는 행정안전부 주민등록 인구통계(연말 기준).",
+    "거주_취업자": "KOSIS > 지역별고용조사 > 시군구 취업자. 반기 자료라 통근통학 조사연도에 맞춰 고른다.",
+    "관내_일자리": "KOSIS > 전국사업체조사 > 시군구별 종사자수. 연 1회.",
+    "_원칙": "여섯 값은 같은 연도로 맞춘다. 조사 주기가 달라 정확히 못 맞추면 source 에 실제 연도를 적어 화면에 드러나게 한다."
+  },
+  "region": "세종특별자치시",
+  "note": "통근통학은 인구주택총조사 5년 주기입니다. 조사연도 사이 값은 없습니다.",
+  "years": {
+    "2015": {
+      "population":         {"value": 200000, "source": "표본"},
+      "employed_residents": {"value": 90000,  "source": "표본"},
+      "jobs":               {"value": 78000,  "source": "표본"},
+      "internal_commuters": {"value": 52000,  "source": "표본"},
+      "in_commuters":       {"value": 26000,  "source": "표본"},
+      "out_commuters":      {"value": 33000,  "source": "표본"}
+    },
+    "2020": {
+      "population":         {"value": 350000, "source": "표본"},
+      "employed_residents": {"value": 160000, "source": "표본"},
+      "jobs":               {"value": 150000, "source": "표본"},
+      "internal_commuters": {"value": 105000, "source": "표본"},
+      "in_commuters":       {"value": 45000,  "source": "표본"},
+      "out_commuters":      {"value": 55000,  "source": "표본"}
+    },
+    "2025": {
+      "population":         {"value": 395000, "source": "표본"},
+      "employed_residents": {"value": 185000, "source": "표본"},
+      "jobs":               {"value": 182000, "source": "표본"},
+      "internal_commuters": {"value": 128000, "source": "표본"},
+      "in_commuters":       {"value": 54000,  "source": "표본"},
+      "out_commuters":      {"value": 57000,  "source": "표본"}
+    }
+  },
+  "peers": {
+    "대전광역시": {
+      "2020": {
+        "population": 1450000, "employed_residents": 700000, "jobs": 660000,
+        "internal_commuters": 620000, "in_commuters": 40000, "out_commuters": 80000
+      }
+    },
+    "청주시": {
+      "2020": {
+        "population": 850000, "employed_residents": 420000, "jobs": 410000,
+        "internal_commuters": 370000, "in_commuters": 40000, "out_commuters": 50000
+      }
+    }
+  }
+}

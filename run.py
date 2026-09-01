@@ -25,7 +25,7 @@ for stream in (sys.stdout, sys.stderr):
         pass
 
 import build_dashboard
-from collectors import demo, gims, hrfco, kma, nier, nierstat
+from collectors import demo, gims, hrfco, kma, nier, nierstat, selfsuff
 from collectors.common import (BASE_DIR, CollectError, load_config, load_json,
                                now_kst, save_json, stamp)
 
@@ -68,6 +68,17 @@ def collect(cfg: dict) -> dict:
         except Exception as exc:                      # 예상 못 한 예외도 상황판에 남긴다
             data[key] = {"errors": ["예상치 못한 오류: %r" % exc]}
             print(" 오류: %r" % exc)
+
+    # 자족도시 지표는 인증키가 없다. 사람이 채워 둔 data/selfsuff.json 을 읽을 뿐이라
+    # 네트워크도 타지 않는다. 파일이 없으면 사유만 남기고 넘어간다.
+    print("  - %-8s 계산 중..." % "자족도시", end="", flush=True)
+    try:
+        data["selfsuff"] = selfsuff.collect(cfg.get("selfsuff") or {})
+        print(" %s" % ("%s년" % data["selfsuff"]["year"]
+                       if data["selfsuff"].get("year") else "자료 없음"))
+    except Exception as exc:
+        data["selfsuff"] = {"errors": ["예상치 못한 오류: %r" % exc]}
+        print(" 오류: %r" % exc)
     return data
 
 
