@@ -1097,6 +1097,63 @@ def render_quality(nier: dict) -> str:
             '<tbody>%s</tbody></table></div>' % (head, "".join(rows)))
 
 
+FLOOD_DEPTH_COLORS = ["var(--fd1)", "var(--fd2)", "var(--fd3)",
+                      "var(--fd4)", "var(--fd5)"]
+
+
+def load_flood_stats() -> dict:
+    """굳혀 둔 침수면적 통계. 없으면 빈 dict — 패널이 통째로 빠진다.
+
+    수집기가 아니라 tools/make_flood_stats.py 가 만든다. 지도가 다시 그려질
+    때만 바뀌는 자료라 10분 주기 수집에 넣지 않았다.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "assets", "sejong_flood_stats.json")
+    try:
+        with open(path, encoding="utf-8") as fp:
+            return json.load(fp)
+    except (OSError, ValueError):
+        return {}
+
+
+def render_flood_stats(stats: dict) -> str:
+    """빈도별 침수면적을 지도 3종으로 나눠 누적 막대로 보인다.
+
+    막대 길이는 세 지도를 통틀어 가장 큰 면적에 맞춘다. 지도마다 따로 맞추면
+    도시침수 10km2 와 지방하천범람 40km2 가 같은 길이로 그려져, 규모 차이가
+    한눈에 안 보인다 — 그게 이 패널에서 가장 중요한 정보다.
+    """
+    maps = stats.get("maps") or []
+    if not maps:
+        return ('<div class="empty">침수면적 통계가 없습니다. '
+                'tools/make_flood_stats.py 를 한 번 돌려주세요.</div>')
+
+    depths = stats.get("depths") or []
+    top = max((row["total"] for m in maps for row in m["rows"]), default=0) or 1
+
+    blocks = []
+    for entry in maps:
+        rows = []
+        for row in entry["rows"]:
+            segs = "".join(
+                '<i style="width:%.3f%%;background:%s" title="%s %s km2"></i>'
+                % (area / top * 100.0, FLOOD_DEPTH_COLORS[i % 5],
+                   esc(depths[i] if i < len(depths) else ""), fmt(area))
+                for i, area in enumerate(row["areas"]) if area)
+            rows.append('<div class="fdrow"><span class="fq">%s</span>'
+                        '<span class="fdbar">%s</span>'
+                        '<span class="tt">%s</span></div>'
+                        % (esc(row["label"]), segs, fmt(row["total"])))
+        blocks.append('<div class="fdmap"><h3>%s</h3><p class="fd-note">%s</p>%s</div>'
+                      % (esc(entry["name"]), esc(entry.get("note") or ""),
+                         "".join(rows)))
+
+    key = "".join('<span><i style="background:%s"></i>%s</span>'
+                  % (FLOOD_DEPTH_COLORS[i % 5], esc(label))
+                  for i, label in enumerate(depths))
+    return "%s<div class=\"fdkey\">침수심 %s</div>" % ("".join(blocks), key)
+
+
 def render_weather(kma: dict) -> str:
     now = kma.get("now") or {}
     forecast = kma.get("forecast") or {}
@@ -1237,6 +1294,7 @@ VIEW_SECTIONS = [
     ("quality", "수질 전 지점"),
     ("weather", "기상"),
     ("pollution", "오염원 통계"),
+    ("floodstat", "침수면적"),
 ]
 
 VIEW_JS = r"""
@@ -1702,11 +1760,17 @@ def render(data: dict) -> str:
     <span class="src">국립환경과학원 시군구 통계</span></h2>
     <p class="note">연 단위 통계입니다. 실시간 값이 아닙니다.</p>
     %s</section>
+  <section class="panel wide" data-view="floodstat"><h2>세종시 빈도별 침수면적
+    <span class="src">한강홍수통제소 홍수위험지도</span></h2>
+    <p class="note">지도로 미리 계산해 둔 <b>가상의 시나리오</b>입니다. 지금 잠겼다는
+    뜻이 아니며, 현재 상황은 위쪽 수위·강수를 보십시오.</p>
+    %s</section>
 </div>
 %s
 <footer>
   출처 — 한강홍수통제소 오픈API(수위·강수), 기상청 단기예보 조회서비스(실황·예보),
-  국립환경과학원 물환경정보시스템(실시간 수질).<br>
+  국립환경과학원 물환경정보시스템(실시간 수질),
+  한강홍수통제소 홍수위험지도(빈도별 침수면적).<br>
   지도의 행정구역 경계·하천수계·관측지점은 모두 실제 좌표입니다.
   하천망 © OpenStreetMap 기여자 (ODbL).<br>
   수위·강수 자료는 보정 전 원시자료입니다. 실제 홍수 대응 판단은 한강홍수통제소 공식 발표를 따르십시오.<br>
@@ -1719,6 +1783,7 @@ def render(data: dict) -> str:
         render_freshness(data),
         render_explorer(build_points(data), data),
         render_quality(nier), render_weather(kma), render_pollution(data),
+        render_flood_stats(load_flood_stats()),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
         THEME_JS + VIEW_JS + CHART_JS

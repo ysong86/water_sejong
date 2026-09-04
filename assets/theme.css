@@ -37,6 +37,10 @@
   --st-serious: #8d1020;
   --st-unknown: #8496a8;
 
+  /* 침수심 5단계 — 얕음에서 깊음으로 가는 파랑 한 계열 */
+  --fd1: #bae0f2;  --fd2: #7cc2e2;  --fd3: #3a9ac9;
+  --fd4: #1a6fa3;  --fd5: #0d4570;
+
   /* 수질 등급 */
   --g-ia: #0b6fa8;  --g-ib: #0d8a52;  --g-ii: #3f9440;
   --g-iii: #b47407; --g-iv: #c8500f;  --g-v: #c02434;  --g-vi: #8d1020;
@@ -93,6 +97,9 @@
   --st-alert: #f87171;
   --st-serious: #ef4444;
   --st-unknown: #64798f;
+
+  --fd1: #1c4f74;  --fd2: #2a76a6;  --fd3: #3a9ac9;
+  --fd4: #6ec3e8;  --fd5: #b3e2f7;
 
   --g-ia: #3fbdf0;  --g-ib: #35d08a;  --g-ii: #6ee7b7;
   --g-iii: #f0b429; --g-iv: #fb923c;  --g-v: #f87171;  --g-vi: #ef4444;
@@ -817,3 +824,29 @@ footer {
   .theme-toggle, .maptools, .visitors { display: none; }
   .panel, .kpi, .freshbar { box-shadow: none; break-inside: avoid; }
 }
+
+
+/* ── 빈도별 침수면적 ─────────────────────────────────────────── */
+.fdmap { margin-bottom: 14px; }
+.fdmap:last-child { margin-bottom: 0; }
+.fdmap > h3 {
+  margin: 0 0 2px; font-size: 12.5px; font-weight: 700; color: var(--fg);
+}
+.fdmap > p.fd-note { margin: 0 0 7px; font-size: 11px; color: var(--muted); }
+.fdrow { display: grid; grid-template-columns: 52px 1fr 66px; align-items: center;
+  gap: 8px; padding: 2.5px 0; }
+.fdrow .fq { font-size: 11.5px; color: var(--muted); text-align: right;
+  font-variant-numeric: tabular-nums; }
+.fdrow .tt { font-size: 11.5px; font-weight: 600; text-align: right;
+  font-variant-numeric: tabular-nums; }
+.fdbar { display: flex; height: 15px; border-radius: 3px; overflow: hidden;
+  background: var(--panel-3); }
+.fdbar > i { display: block; height: 100%; }
+.fdkey { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 9px;
+  font-size: 10.5px; color: var(--muted); }
+.fdkey > span { display: inline-flex; align-items: center; gap: 4px; }
+.fdkey i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+/* 침수면적 패널은 막대 세 묶음이라 한 칸으로는 좁다 — 줄 전체를 쓴다.
+   칸이 하나뿐인 좁은 화면에서는 grid-column 이 저절로 무해해진다. */
+.panel.wide { grid-column: 1 / -1; }
