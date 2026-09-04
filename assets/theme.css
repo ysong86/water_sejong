@@ -45,6 +45,12 @@
   --gw-national: #6d28d9;
   --gw-local: #be185d;
 
+  /* 자족도시 지표 구간 — 순차 램프. 좋고 나쁨이 아니라 세기를 나타낸다. */
+  --ss-weak: #a3763a;
+  --ss-fair: #6f8a3c;
+  --ss-good: #2f8560;
+  --ss-strong: #0b6fa8;
+
   /* 지도 */
   --map-bg: #e9f1f8;
   --map-land: #ffffff;
@@ -99,6 +105,11 @@
 
   --gw-national: #a78bfa;
   --gw-local: #f472b6;
+
+  --ss-weak: #d0a35f;
+  --ss-fair: #a8c66c;
+  --ss-good: #4ecfa0;
+  --ss-strong: #3fbdf0;
 
   --map-bg: #0b1524;
   --map-land: #142339;
@@ -817,3 +828,139 @@ footer {
   .theme-toggle, .maptools, .visitors { display: none; }
   .panel, .kpi, .freshbar { box-shadow: none; break-inside: avoid; }
 }
+
+
+/* --------------------------------------------------------------- 자족도시 지표 */
+
+/* 지표 다섯 개를 나란히 봐야 뜻이 살아서 이 패널만 한 줄을 다 쓴다. */
+.panel.wide { grid-column: 1 / -1; }
+
+.ss-h {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 12.5px; font-weight: 700; margin-bottom: 10px;
+}
+.ss-h .yr { color: var(--muted); font-size: 11px; font-weight: 400; }
+
+.sscards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 10px;
+}
+.sscard {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 11px 12px 8px; background: var(--panel-2);
+  border-top: 3px solid var(--c);
+}
+.ss-l { font-size: 11.5px; color: var(--fg-2); font-weight: 600; }
+.ss-v {
+  font-size: 25px; font-weight: 700; line-height: 1.15; margin-top: 2px;
+  color: var(--c); font-variant-numeric: tabular-nums;
+}
+.ss-u { font-size: 12px; font-weight: 600; margin-left: 2px; }
+.ss-band {
+  display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+.sscard .spark { width: 100%; height: 34px; display: block; margin-top: 6px; }
+.ss-d {
+  color: var(--muted); font-size: 10.5px; margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 주간인구 = 상주인구 - 유출 + 유입. 식을 그대로 보여주는 편이 이해가 빠르다. */
+.ssflow {
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px;
+  margin-top: 15px; padding: 12px; border-radius: 10px;
+  background: var(--panel-3);
+}
+.ssf {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 4px 10px; border-radius: 8px; background: var(--panel);
+  border: 1px solid var(--line);
+}
+.ssf .l { font-size: 10.5px; color: var(--muted); }
+.ssf .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ssf.out .v { color: var(--st-warning); }
+.ssf.in .v { color: var(--ss-good); }
+.ssf.big { border-color: var(--accent); }
+.ssf.big .v { color: var(--accent); }
+.ssop {
+  display: flex; align-items: center; color: var(--muted);
+  font-size: 15px; font-weight: 700;
+}
+
+.sscmp { margin-top: 16px; overflow-x: auto; }
+.sscmp table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 11.5px; }
+.sscmp th, .sscmp td {
+  padding: 6px 9px; text-align: right; border-bottom: 1px solid var(--line-2);
+  font-variant-numeric: tabular-nums;
+}
+.sscmp thead th { color: var(--muted); font-weight: 600; font-size: 10.5px; }
+.sscmp th.rg { text-align: left; font-weight: 600; color: var(--fg-2); white-space: nowrap; }
+.sscmp th.rg .yr { color: var(--muted); font-weight: 400; margin-left: 5px; font-size: 10px; }
+.sscmp tr.me { background: var(--accent-soft); }
+.sscmp tr.me th.rg { color: var(--accent); font-weight: 700; }
+.sscmp td { font-weight: 600; }
+
+.ssnote { color: var(--muted); font-size: 11px; margin-top: 12px; line-height: 1.65; }
+
+/* --------------------------------------------------------------- 안심의료 */
+
+.mdstats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px; margin-bottom: 14px;
+}
+.mdstat {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; background: var(--panel-2);
+}
+.mdstat .l { font-size: 11.5px; color: var(--fg-2); font-weight: 600; }
+.mdstat .v {
+  font-size: 25px; font-weight: 700; line-height: 1.2; color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.mdstat .of { font-size: 14px; font-weight: 600; color: var(--muted); }
+.mdstat .s { font-size: 10.5px; color: var(--muted); display: flex; gap: 8px; }
+.mdstat .s .q { color: var(--st-watch); cursor: help; }
+
+.mdcards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px;
+}
+.mdcard {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 11px 13px 12px; background: var(--panel);
+}
+.mdhead {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 8px; padding-bottom: 7px; border-bottom: 1px solid var(--line-2);
+}
+.mdhead .nm { font-size: 12.5px; font-weight: 700; }
+.mdhead .tel { font-size: 11px; color: var(--accent); text-decoration: none; }
+.mdhead .tel:hover { text-decoration: underline; }
+.mdhead .ts {
+  margin-left: auto; font-size: 10.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.beds { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 7px; }
+.bed {
+  border-left: 3px solid var(--c); padding: 3px 0 3px 8px;
+  display: flex; flex-direction: column; gap: 0;
+}
+.bed .bl { font-size: 10.5px; color: var(--muted); }
+.bed .bv {
+  font-size: 17px; font-weight: 700; color: var(--c); line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.bed .bv .of { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.bed .bs { font-size: 10px; color: var(--c); font-weight: 600; }
+
+.mdlist { margin-top: 15px; }
+.mdchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mdchip {
+  font-size: 11.5px; padding: 3px 9px; border-radius: 999px;
+  background: color-mix(in srgb, var(--st-normal) 12%, transparent);
+  color: var(--st-normal); border: 1px solid color-mix(in srgb, var(--st-normal) 26%, transparent);
+  font-weight: 600;
+}
+.mdchip.more { background: transparent; color: var(--muted); border-color: var(--line); font-weight: 400; }
+.mdnone { color: var(--muted); font-size: 11.5px; padding: 4px 0; }

@@ -14,6 +14,7 @@ import urllib.parse
 from datetime import datetime
 
 import sejong_map
+from collectors import nemc, selfsuff
 from collectors.common import BASE_DIR, KST, now_kst, stamp
 
 OUT_PATH = os.path.join(BASE_DIR, "dashboard.html")
@@ -1122,9 +1123,9 @@ def render_weather(kma: dict) -> str:
 # 소스별 원 제공주기(분)와, 이 정도 지나면 오래된 자료로 볼 기준(분).
 # 기준은 제공주기의 3배 남짓 — 한두 번 걸러도 경고가 뜨지 않게.
 SOURCE_CADENCE = {"waterlevel": 10, "rainfall": 10, "quality": 30 * 1440,
-                  "groundwater": 60, "weather": 60}
+                  "groundwater": 60, "weather": 60, "emergency": 10}
 STALE_LIMIT = {"waterlevel": 30, "rainfall": 30, "quality": 75 * 1440,
-               "groundwater": 240, "weather": 120}
+               "groundwater": 240, "weather": 120, "emergency": 30}
 
 
 def _parse_stamp(text):
@@ -1168,6 +1169,9 @@ def freshness(data: dict) -> list:
          len(gims.get("stations") or [])),
         ("기상", "weather", _parse_stamp((kma.get("now") or {}).get("base")),
          1 if kma.get("now") else 0),
+        ("응급실", "emergency", _latest_stamp(
+            [e.get("observed") for e in (data.get("nemc") or {}).get("er") or []]),
+         len((data.get("nemc") or {}).get("er") or [])),
     ]
 
     now = _parse_stamp(data.get("generated_at")) or now_kst()
@@ -1203,7 +1207,7 @@ def freshness(data: dict) -> list:
 
 
 PENDING_NOTE = "업데이트 예정"
-DEFAULT_PENDING = ["groundwater", "flood"]
+DEFAULT_PENDING = ["groundwater", "flood", "emergency"]
 
 
 def _pending(data: dict, key: str) -> bool:
@@ -1237,6 +1241,8 @@ VIEW_SECTIONS = [
     ("quality", "수질 전 지점"),
     ("weather", "기상"),
     ("pollution", "오염원 통계"),
+    ("medical", "안심의료"),
+    ("selfsuff", "자족도시"),
 ]
 
 VIEW_JS = r"""
@@ -1583,10 +1589,213 @@ def render_pollution(data: dict) -> str:
     return "".join(cards)
 
 
+# 응급실 병상 여유 → 색. 홍수단계와 같은 초록→빨강 램프를 쓴다.
+BED_COLORS = {"free": "var(--st-normal)", "fair": "var(--st-watch)",
+              "tight": "var(--st-warning)", "full": "var(--st-alert)",
+              "count": "var(--accent)", "unknown": "var(--st-unknown)"}
+
+
+def _open_chips(block: dict, limit: int = 14) -> str:
+    """지금 문 연 곳을 칩으로. 다 늘어놓으면 화면을 잡아먹어 앞쪽만 보이고 접는다."""
+    places = block.get("places") or []
+    if not places:
+        return '<div class="mdnone">지금 문을 연 곳이 없습니다.</div>'
+    chips = "".join(
+        '<span class="mdchip"%s>%s</span>'
+        % (' title="%s"' % esc(p["addr"]) if p.get("addr") else "", esc(p["name"]))
+        for p in places[:limit])
+    if len(places) > limit:
+        chips += '<span class="mdchip more">외 %d곳</span>' % (len(places) - limit)
+    return '<div class="mdchips">%s</div>' % chips
+
+
+def _open_stat(label: str, block, note: str) -> str:
+    if not block:
+        return ""
+    unknown = ""
+    if block.get("unknown"):
+        unknown = ('<span class="q" title="진료시간이 비어 있어 개폐를 판정할 수 '
+                   '없는 곳입니다.">시간미상 %d</span>' % block["unknown"])
+    return ('<div class="mdstat"><div class="l">%s</div>'
+            '<div class="v">%d<span class="of"> / %d</span></div>'
+            '<div class="s">%s%s</div></div>'
+            % (esc(label), block.get("open") or 0, block.get("total") or 0,
+               esc(note), unknown))
+
+
+def render_medical(data: dict) -> str:
+    """세종 365-24 안심의료 — 지금 이 시각 무엇이 열려 있나.
+
+    응급실 가용병상은 이 상황판에서 유일하게 분 단위로 바뀌는 의료 자료다.
+    약국·소아과는 목록의 진료시간으로 개폐를 계산한 값이라, 임시 휴진은 반영되지
+    않는다. 화면에도 그렇게 밝힌다.
+    """
+    med = data.get("nemc") or {}
+    stations = med.get("er") or []
+    pharmacy, pediatric = med.get("pharmacy"), med.get("pediatric")
+
+    if not stations and not pharmacy and not pediatric:
+        reason = (med.get("errors") or ["응급의료 자료가 없습니다."])[0]
+        return ('<div class="empty"><b>%s</b> — %s</div>'
+                % (PENDING_NOTE, esc(reason)))
+
+    # 응급실 일반 병상 합계 — 이 화면에서 제일 먼저 보는 숫자
+    free = sum(int(b["free"]) for e in stations for b in e["beds"]
+               if b["label"].startswith("응급실") and b.get("free") is not None)
+    total = sum(int(b["total"]) for e in stations for b in e["beds"]
+                if b["label"].startswith("응급실") and b.get("total"))
+    _, note = nemc.bed_state(free if stations else None, total)
+    stats = ('<div class="mdstat"><div class="l">응급실 일반 병상</div>'
+             '<div class="v">%d%s</div><div class="s">%s · %d개 기관</div></div>'
+             % (free, '<span class="of"> / %d</span>' % total if total else "",
+                esc(note if total else "기준 병상 미상"), len(stations)))
+    stats += _open_stat("지금 문 연 약국", pharmacy, "진료시간 기준")
+    if pediatric:
+        stats += _open_stat("지금 문 연 %s과"
+                            % "·".join(pediatric.get("keywords") or ["소아"]),
+                            pediatric, "진료시간 기준")
+
+    cards = []
+    for entry in stations:
+        beds = "".join(
+            '<div class="bed" style="--c:%s"><span class="bl">%s</span>'
+            '<span class="bv">%s%s</span><span class="bs">%s</span></div>'
+            % (BED_COLORS.get(bed["state"], NEUTRAL), esc(bed["label"]),
+               fmt(bed["free"], 0),
+               '<span class="of"> / %s</span>' % fmt(bed["total"], 0)
+               if bed.get("total") else "",
+               esc(bed["note"] if bed.get("total") else ""))
+            for bed in entry["beds"])
+        if not beds:
+            beds = '<div class="mdnone">병상 항목이 비어 있습니다.</div>'
+        tel = ('<a class="tel" href="tel:%s">%s</a>'
+               % (esc(entry["tel"]), esc(entry["tel"]))) if entry.get("tel") else ""
+        cards.append(
+            '<div class="mdcard"><div class="mdhead"><span class="nm">%s</span>%s'
+            '<span class="ts">%s</span></div><div class="beds">%s</div></div>'
+            % (esc(entry["name"]), tel, esc(hhmm(entry.get("observed"))), beds))
+
+    lists = ""
+    if pharmacy:
+        lists += ('<div class="mdlist"><div class="ss-h">지금 문 연 약국'
+                  '<span class="yr">%d곳</span></div>%s</div>'
+                  % (pharmacy.get("open") or 0, _open_chips(pharmacy)))
+    if pediatric:
+        lists += ('<div class="mdlist"><div class="ss-h">지금 문 연 %s과'
+                  '<span class="yr">%d곳</span></div>%s</div>'
+                  % (esc("·".join(pediatric.get("keywords") or ["소아"])),
+                     pediatric.get("open") or 0, _open_chips(pediatric)))
+
+    warn = ""
+    if med.get("errors"):
+        warn = ('<div class="ssnote">받지 못한 항목 — %s</div>'
+                % esc(" / ".join(med["errors"])))
+
+    return ('<div class="mdstats">%s</div><div class="mdcards">%s</div>%s'
+            '<div class="ssnote">약국·병의원의 개폐는 <b>기관이 신고한 진료시간</b>으로 '
+            '계산한 값입니다. 임시 휴진·공휴일 변경은 반영되지 않으니 방문 전 전화로 '
+            '확인하십시오. 응급실 병상은 기관이 입력한 시각 기준입니다.</div>%s'
+            % (stats, "".join(cards), lists, warn))
+
+
+def render_selfsuff(data: dict) -> str:
+    """자족도시 지표 — 통근·일자리로 자족성을 본다.
+
+    수질 등급과 같은 성격의 주의가 필요하다. 구간 라벨(낮음/보통/높음)은 국외
+    도시계획 관행에서 가져온 참고선이지 법정 기준이 아니다. 화면에도 밝힌다.
+    """
+    stat = data.get("selfsuff") or {}
+    if not stat.get("year"):
+        reason = (stat.get("errors") or ["자족도시 지표 자료가 없습니다."])[0]
+        return ('<div class="empty"><b>%s</b> — %s</div>'
+                % (PENDING_NOTE, esc(reason)))
+
+    values = stat.get("values") or {}
+    trend = stat.get("trend") or []
+
+    cards = []
+    for spec in selfsuff.INDICATORS:
+        value = values.get(spec["id"])
+        label, token = selfsuff.band(spec, value)
+        color = "var(%s)" % token
+        series = [{"v": row["values"].get(spec["id"])} for row in trend]
+        cards.append(
+            '<div class="sscard" style="--c:%s" title="%s">'
+            '<div class="ss-l">%s</div>'
+            '<div class="ss-v">%s<span class="ss-u">%s</span></div>'
+            '<div class="ss-band">%s</div>'
+            '%s'
+            '<div class="ss-d">%s</div></div>'
+            % (color, esc("%s — %s" % (spec["formula"], spec["desc"])),
+               esc(spec["label"]), fmt(value, spec["digits"]), esc(spec["unit"]),
+               esc(label), sparkline(series, color, 200, 34),
+               esc(spec["formula"])))
+
+    base = stat.get("base") or {}
+    flow = ""
+    if stat.get("daytime_population") is not None:
+        flow = (
+            '<div class="ssflow">'
+            '<div class="ssf"><span class="l">상주인구</span><span class="v">%s</span></div>'
+            '<div class="ssop">−</div>'
+            '<div class="ssf out"><span class="l">유출 통근</span><span class="v">%s</span></div>'
+            '<div class="ssop">+</div>'
+            '<div class="ssf in"><span class="l">유입 통근</span><span class="v">%s</span></div>'
+            '<div class="ssop">=</div>'
+            '<div class="ssf big"><span class="l">주간인구</span><span class="v">%s</span></div>'
+            '</div>'
+            % (fmt(base.get("population"), 0), fmt(base.get("out_commuters"), 0),
+               fmt(base.get("in_commuters"), 0), fmt(stat.get("daytime_population"), 0)))
+
+    peers = stat.get("peers") or []
+    compare = ""
+    if peers:
+        head = "".join("<th>%s</th>" % esc(s["label"]) for s in selfsuff.INDICATORS)
+        rows = []
+        for region in [stat] + peers:
+            name = region.get("name") or region.get("region") or "—"
+            cells = []
+            for spec in selfsuff.INDICATORS:
+                value = (region.get("values") or {}).get(spec["id"])
+                _, token = selfsuff.band(spec, value)
+                cells.append('<td style="color:var(%s)">%s</td>'
+                             % (token, fmt(value, spec["digits"])))
+            rows.append('<tr%s><th class="rg">%s<span class="yr">%s</span></th>%s</tr>'
+                        % (' class="me"' if region is stat else "",
+                           esc(name), esc(region.get("year") or "—"), "".join(cells)))
+        compare = ('<div class="sscmp"><div class="ss-h">다른 도시와 비교<span class="yr">조사연도가 다를 수 있습니다</span></div>'
+                   '<table><thead><tr><th></th>%s</tr></thead><tbody>%s</tbody>'
+                   '</table></div>' % (head, "".join(rows)))
+
+    notes = []
+    if stat.get("sample"):
+        notes.append('<span class="badge demo">표본값</span> 실제 통계가 아닙니다.')
+    if stat.get("missing"):
+        notes.append("빠진 재료 — %s. 채우면 관련 지표가 함께 나옵니다."
+                     % esc(", ".join(stat["missing"])))
+    used = stat.get("sources") or {}
+    if used:
+        seen = []
+        for _, source in used.items():
+            if source not in seen:
+                seen.append(source)
+        notes.append("출처 — %s" % esc(" · ".join(seen)))
+    if stat.get("note"):
+        notes.append(esc(stat["note"]))
+    note_html = ('<div class="ssnote">%s</div>'
+                 % "<br>".join(notes)) if notes else ""
+
+    return ('<div class="ss-h">%s<span class="yr">기준 %s년</span></div>'
+            '<div class="sscards">%s</div>%s%s%s'
+            % (esc(stat.get("region") or "—"), esc(stat.get("year") or "—"),
+               "".join(cards), flow, compare, note_html))
+
+
 def render_errors(data: dict) -> str:
     buckets = [("하천/강수(HRFCO)", (data.get("hrfco") or {}).get("errors") or []),
                ("실시간 수질(국립환경과학원)", (data.get("nier") or {}).get("errors") or []),
-               ("기상(기상청)", (data.get("kma") or {}).get("errors") or [])]
+               ("기상(기상청)", (data.get("kma") or {}).get("errors") or []),
+               ("응급의료(국립중앙의료원)", (data.get("nemc") or {}).get("errors") or [])]
     lines = []
     for source, errors in buckets:
         for error in errors:
@@ -1702,6 +1911,17 @@ def render(data: dict) -> str:
     <span class="src">국립환경과학원 시군구 통계</span></h2>
     <p class="note">연 단위 통계입니다. 실시간 값이 아닙니다.</p>
     %s</section>
+  <section class="panel wide" data-view="medical"><h2>세종 365-24 안심의료
+    <span class="src">국립중앙의료원 응급의료정보</span></h2>
+    <p class="note">응급실 가용병상은 기관이 입력한 실시간 값입니다. 약국·병의원의
+    개폐는 신고된 진료시간으로 계산한 값이라 임시 휴진은 반영되지 않습니다.</p>
+    %s</section>
+  <section class="panel wide" data-view="selfsuff"><h2>세종 자족도시 지표
+    <span class="src">통계청 통근통학 · 전국사업체조사</span></h2>
+    <p class="note">통근과 일자리로 자족성을 봅니다. 통근통학은 5년 주기 조사라
+    실시간 값이 아닙니다. 구간 라벨(낮음·보통·높음, 균형)은 영국 신도시 자족률과
+    미국 직주균형 관행에서 가져온 <b>참고선</b>이며 법정 기준이 아닙니다.</p>
+    %s</section>
 </div>
 %s
 <footer>
@@ -1719,6 +1939,7 @@ def render(data: dict) -> str:
         render_freshness(data),
         render_explorer(build_points(data), data),
         render_quality(nier), render_weather(kma), render_pollution(data),
+        render_medical(data), render_selfsuff(data),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
         THEME_JS + VIEW_JS + CHART_JS

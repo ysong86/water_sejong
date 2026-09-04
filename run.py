@@ -25,7 +25,7 @@ for stream in (sys.stdout, sys.stderr):
         pass
 
 import build_dashboard
-from collectors import demo, gims, hrfco, kma, nier, nierstat
+from collectors import demo, gims, hrfco, kma, nemc, nier, nierstat, selfsuff
 from collectors.common import (BASE_DIR, CollectError, load_config, load_json,
                                now_kst, save_json, stamp)
 
@@ -42,6 +42,7 @@ def collect(cfg: dict) -> dict:
         ("gims", "지하수관측망", gims.collect, cfg.get("gims") or {}),
         ("kma", "기상청", kma.collect, cfg.get("kma") or {}),
         ("nierstat", "오염원통계", nierstat.collect, cfg.get("nierstat") or {}),
+        ("nemc", "응급의료", nemc.collect, cfg.get("nemc") or {}),
     ]
     for key, label, func, section in sources:
         api_key = (section.get("key") or "").strip()
@@ -60,6 +61,9 @@ def collect(cfg: dict) -> dict:
                 "kma": lambda d: "실황 %s" % ("O" if d.get("now") else "X"),
                 "nierstat": lambda d: "항목 %d" % sum(
                     1 for b in (d.get("blocks") or []) if b.get("rows")),
+                "nemc": lambda d: "응급실 %d / 약국 %s" % (
+                    len(d.get("er") or []),
+                    (d.get("pharmacy") or {}).get("open", "-")),
             }[key](data[key])
             print(" %s" % counts)
         except CollectError as exc:
@@ -68,6 +72,17 @@ def collect(cfg: dict) -> dict:
         except Exception as exc:                      # 예상 못 한 예외도 상황판에 남긴다
             data[key] = {"errors": ["예상치 못한 오류: %r" % exc]}
             print(" 오류: %r" % exc)
+
+    # 자족도시 지표는 인증키가 없다. 사람이 채워 둔 data/selfsuff.json 을 읽을 뿐이라
+    # 네트워크도 타지 않는다. 파일이 없으면 사유만 남기고 넘어간다.
+    print("  - %-8s 계산 중..." % "자족도시", end="", flush=True)
+    try:
+        data["selfsuff"] = selfsuff.collect(cfg.get("selfsuff") or {})
+        print(" %s" % ("%s년" % data["selfsuff"]["year"]
+                       if data["selfsuff"].get("year") else "자료 없음"))
+    except Exception as exc:
+        data["selfsuff"] = {"errors": ["예상치 못한 오류: %r" % exc]}
+        print(" 오류: %r" % exc)
     return data
 
 
@@ -75,6 +90,7 @@ PROBE_TARGETS = {
     "nier": ("수질측정망", nier, "nier.endpoint"),
     "nierstat": ("시군구 오염원 통계", nierstat, "nierstat.operations"),
     "gims": ("지하수 관측망", gims, "gims.data_endpoint"),
+    "nemc": ("응급의료정보", nemc, "nemc.sido"),
 }
 
 
@@ -104,6 +120,8 @@ def probe(cfg: dict, only=None, url=None, save=False) -> int:
                 filled = {k: v for k, v in (report["sample"] or {}).items()
                           if v is not None}
                 print("         예: %s" % json.dumps(filled, ensure_ascii=False)[:180])
+                for note in report.get("notes") or []:
+                    print("         · %s" % note)
                 winner = winner or report["url"]
             else:
                 print("  [--]   %s - %s"
@@ -151,7 +169,7 @@ def main(argv=None) -> int:
     parser.add_argument("--probe", action="store_true",
                         help="수질·지하수 엔드포인트 타진")
     parser.add_argument("--only", default=None,
-                        choices=["nier", "gims", "nierstat"],
+                        choices=["nier", "gims", "nierstat", "nemc"],
                         help="--probe 대상을 하나로 한정")
     parser.add_argument("--url", default=None,
                         help="포털에서 복사한 요청주소 하나만 시험 (--only 와 함께)")
