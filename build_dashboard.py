@@ -1394,6 +1394,34 @@ AUTOREFRESH_JS = r"""
 """
 
 
+# 함께 보는 상황판 — 네 개가 같은 도시를 다른 각도로 본다. 서로 오갈 길이 없으면
+# 각각 따로 찾아들어야 하고, 그러면 같이 보라고 만든 보람이 사라진다.
+# 생활권·상가공실 화면에도 같은 블록이 있어 모양을 그쪽에 맞추었다.
+SISTER_SITES = [
+    ("livingzone", "세종 생활권 재구조화 상황판",
+     "https://ysong86.github.io/zone_sejong/"),
+    ("vacant", "세종 상가공실 상황판",
+     "https://ysong86.github.io/vacant_sejong/"),
+    ("water", "세종시 물환경 상황판",
+     "https://ysong86.github.io/water_sejong/"),
+    ("traffic", "세종시 교통안전 상황판",
+     "https://ysong86.github.io/traffic_sejong/"),
+]
+
+SELF_ID = "water"
+
+
+def render_sisters() -> str:
+    """오른쪽 위 '함께 보는 상황판' 묶음. 자기 자신은 뺀다."""
+    links = "".join(
+        '<a href="%s" target="_blank" rel="noopener">%s ↗</a>' % (url, esc(label))
+        for key, label, url in SISTER_SITES if key != SELF_ID)
+    if not links:
+        return ""
+    return ('<nav class="sister" aria-label="함께 보는 세종 상황판">'
+            '<span class="eyebrow">함께 보는 상황판</span>%s</nav>' % links)
+
+
 def render_viewbar() -> str:
     chips = "".join(
         '<button type="button" class="vw on" data-view-toggle="%s" '
@@ -1742,8 +1770,11 @@ def render(data: dict) -> str:
   <h1>세종시 물환경 상황판</h1>
   %s
   <span class="grow"></span>
-  <span class="sub">갱신 %s</span>
   %s
+  <div class="hdr-right">
+    <span class="sub">갱신 %s</span>
+    %s
+  </div>
 </header>
 %s%s
 %s
@@ -1779,7 +1810,7 @@ def render(data: dict) -> str:
   %s
 </footer>
 </div><script>%s</script></body></html>""" % (
-        THEME_BOOT, load_css(), FONT_LINK, banner, esc(generated), THEME_TOGGLE, demo_note, alerts, render_viewbar(), kpis,
+        THEME_BOOT, load_css(), FONT_LINK, banner, render_sisters(), esc(generated), THEME_TOGGLE, demo_note, alerts, render_viewbar(), kpis,
         render_freshness(data),
         render_explorer(build_points(data), data),
         render_quality(nier), render_weather(kma), render_pollution(data),

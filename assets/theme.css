@@ -850,3 +850,26 @@ footer {
 /* 침수면적 패널은 막대 세 묶음이라 한 칸으로는 좁다 — 줄 전체를 쓴다.
    칸이 하나뿐인 좁은 화면에서는 grid-column 이 저절로 무해해진다. */
 .panel.wide { grid-column: 1 / -1; }
+
+/* 함께 보는 상황판 — 세종연구원의 다른 화면으로 가는 길.
+   생활권·상가공실 화면과 같은 모양으로 맞추었다. */
+header.top .hdr-right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
+}
+header.top .sister {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+  padding: 7px 11px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel-2);
+}
+header.top .sister .eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--muted);
+}
+header.top .sister a {
+  font-size: 12.5px; font-weight: 600; text-decoration: none; color: var(--accent);
+}
+header.top .sister a:hover { text-decoration: underline; }
+/* 좁은 화면에선 오른쪽 정렬이 어색해진다 — 왼쪽으로 돌린다. */
+@media (max-width: 860px) {
+  header.top .hdr-right, header.top .sister { align-items: flex-start; }
+  header.top .sister { width: 100%; }
+}
