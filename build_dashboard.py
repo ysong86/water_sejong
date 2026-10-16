@@ -1412,14 +1412,11 @@ SELF_ID = "water"
 
 
 def render_sisters() -> str:
-    """오른쪽 위 '함께 보는 상황판' 묶음. 자기 자신은 뺀다."""
-    links = "".join(
-        '<a href="%s" target="_blank" rel="noopener">%s ↗</a>' % (url, esc(label))
-        for key, label, url in SISTER_SITES if key != SELF_ID)
-    if not links:
-        return ""
-    return ('<nav class="sister" aria-label="함께 보는 세종 상황판">'
-            '<span class="eyebrow">함께 보는 상황판</span>%s</nav>' % links)
+    """오른쪽 위 안내 — 다른 상황판은 대문(세종 이슈 대시보드) 하나로 모은다.
+    상황판이 늘어도 대문만 고치면 된다. 대문 안(iframe)에서 열렸으면 _top 으로 대문에 돌아간다."""
+    return ('<nav class="sister" aria-label="세종 이슈 대시보드">'
+            '<span class="eyebrow">다른 상황판은</span>'
+            '<a href="https://ysong86.github.io/" target="_top">세종 이슈 대시보드에서 모아보기 →</a></nav>')
 
 
 def render_viewbar() -> str:
