@@ -890,7 +890,7 @@ header.top .sister a:hover { text-decoration: underline; }
   --map-bg: #F3F2EE; --map-land: #FBFAF7; --map-label: #4A4A47; --map-halo: #FBFAF7;
   --map-city: rgba(17, 17, 16, .55);
   --sans: "IBM Plex Sans KR", "Malgun Gothic", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --mono: "IBM Plex Mono", "IBM Plex Sans KR", ui-monospace, Consolas, monospace;
   --r-sm: 0; --r: 0; --r-lg: 0;
 }
 [data-theme="dark"] {
