@@ -376,10 +376,9 @@ def _groundwater_kpi(data: dict) -> dict:
 CSS_FILE = os.path.join(BASE_DIR, "assets", "theme.css")
 
 # 폰트는 CDN 에서 받되, 없으면 맑은 고딕으로 떨어진다(오프라인에서도 깨지지 않는다).
-FONT_LINK = ('<link rel="preconnect" href="https://cdn.jsdelivr.net">'
-             '<link rel="stylesheet" as="style" crossorigin '
-             'href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/'
-             'variable/pretendardvariable-dynamic-subset.min.css">')
+FONT_LINK = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
+             '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:'
+             'wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">')
 
 FALLBACK_CSS = """
 body{margin:0;background:#f4f7fb;color:#0e2038;font-family:system-ui,sans-serif}

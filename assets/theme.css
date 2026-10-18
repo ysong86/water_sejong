@@ -873,3 +873,51 @@ header.top .sister a:hover { text-decoration: underline; }
   header.top .hdr-right, header.top .sister { align-items: flex-start; }
   header.top .sister { width: 100%; }
 }
+
+/* ======================================================================
+   대문(세종 이슈 대시보드) 디자인 — 2026-10-18
+   종이색 바탕·검은 글자·얇은 선·각진 모서리, 강조색은 남색 한 가지(다크 #8EA0F2).
+   글꼴 IBM Plex Sans KR / IBM Plex Mono. 위의 원래 규칙은 그대로 두고 여기서 덮는다
+   (되돌리려면 이 블록만 지우면 된다). 상태색(홍수단계·수질등급·사고·소통)은 의미가 있어 그대로 둔다.
+   ====================================================================== */
+:root {
+  --bg: #F3F2EE; --bg-grad: none;
+  --panel: #FBFAF7; --panel-2: #F3F2EE; --panel-3: #ECEBE6;
+  --line: rgba(17, 17, 16, .13); --line-2: rgba(17, 17, 16, .06);
+  --fg: #111110; --fg-2: #4A4A47; --muted: #8B8A85;
+  --accent: #152484; --accent-2: #3949AB; --accent-soft: rgba(21, 36, 132, .08);
+  --shadow-1: none; --shadow-2: none;
+  --map-bg: #F3F2EE; --map-land: #FBFAF7; --map-label: #4A4A47; --map-halo: #FBFAF7;
+  --map-city: rgba(17, 17, 16, .55);
+  --sans: "IBM Plex Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r-sm: 0; --r: 0; --r-lg: 0;
+}
+[data-theme="dark"] {
+  --bg: #0F0F0E; --bg-grad: none;
+  --panel: #161615; --panel-2: #0F0F0E; --panel-3: #1D1D1B;
+  --line: rgba(237, 236, 232, .15); --line-2: rgba(237, 236, 232, .07);
+  --fg: #EDECE8; --fg-2: #B2B1AC; --muted: #76756F;
+  --accent: #8EA0F2; --accent-2: #AEBBF6; --accent-soft: rgba(142, 160, 242, .12);
+  --map-bg: #0F0F0E; --map-land: #161615; --map-label: #B2B1AC; --map-halo: #0F0F0E;
+  --map-city: rgba(237, 236, 232, .6);
+}
+body { background: var(--bg); font-family: var(--sans); word-break: keep-all; -webkit-font-smoothing: antialiased; }
+.num, .mono, code { font-family: var(--mono); }
+header.top { border-bottom: 1px solid var(--fg); padding-bottom: 18px; }
+header.top h1 { font-family: var(--sans); font-weight: 700; letter-spacing: -.04em; font-size: clamp(28px, 3.8vw, 52px); line-height: 1.05; }
+header.top .sub { color: var(--fg-2); }
+.panel, .kpi, .ft, .chip, button, .badge, .notice, .alert, .tier, .src-card, .detail, .explorer, .mapwrap, .map-box, .tag {
+  border-radius: 0 !important; box-shadow: none !important;
+}
+.panel { background: var(--panel); border: 1px solid var(--line); }
+.kpi { background: none; border: 0; border-top: 1px solid var(--fg); border-right: 1px solid var(--line); padding-left: 14px; }
+.kpi:hover { transform: none; }
+.kpi::before, .kpi::after { display: none; }
+.kpi .v { font-family: var(--mono); font-weight: 500; letter-spacing: -.02em; }
+.kpi .l { color: var(--fg-2); }
+.ft.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+h2, h3 { font-family: var(--sans); letter-spacing: -.02em; }
+.panel > h2, .panel h2:first-child { border-bottom: 1px solid var(--fg); padding-bottom: 8px; }
+.theme-toggle { border-radius: 0; }
+.theme-toggle button { border-radius: 0; }
