@@ -1642,6 +1642,73 @@ def render_sisters() -> str:
     return ""
 
 
+# 한 화면에 성격이 다른 둘이 섞여 있다. 수위·강수는 10분마다 바뀌고 비 올 때
+# 보는 것이고, 불투수·침수면적은 연 단위로 바뀌고 보고서 쓸 때 보는 것이다.
+# 섞어 두면 비 올 때 들어온 사람이 한참 스크롤해야 한다.
+TABS = [
+    ("live", "실시간", "지금 비가 얼마나 왔고 물이 어디까지 찼나",
+     ("kpi", "fresh", "explorer", "quality", "weather")),
+    ("study", "분석", "세종의 물환경은 어떤 상태인가",
+     ("impervious", "floodstat", "pollution")),
+]
+TAB_OF = {view: tab for tab, _, _, views in TABS for view in views}
+
+
+def render_tabs() -> str:
+    """지역안전 읽기의 탭 줄과 같은 모양. 거기는 상황판 여러 장을 iframe 으로
+    묶지만 여기는 한 장을 둘로 나누는 것이라 안에서 전환한다 — 지도와 CSS 를
+    두 번 실어 나를 이유가 없다."""
+    return ('<div class="sw-tabs" role="tablist" aria-label="보기 묶음">%s</div>'
+            % "".join(
+                '<button type="button" class="sw-tab" role="tab" data-tab="%s" '
+                'aria-selected="%s"><b>%s</b><span>%s</span></button>'
+                % (key, "true" if i == 0 else "false", esc(title), esc(sub))
+                for i, (key, title, sub, _) in enumerate(TABS)))
+
+
+def tag_tabs(html: str) -> str:
+    """각 블록에 어느 탭 소속인지 붙인다.
+
+    블록마다 data-tabgroup 을 직접 쓰지 않고 여기서 한 번에 다는 이유: 탭 구성은
+    바뀌고 블록 위치는 안 바뀐다. TABS 한 곳만 고치면 되게 둔다.
+    """
+    for view, tab in TAB_OF.items():
+        html = html.replace('data-view="%s"' % view,
+                            'data-view="%s" data-tabgroup="%s"' % (view, tab))
+        html = html.replace('data-view-toggle="%s"' % view,
+                            'data-view-toggle="%s" data-tabgroup="%s"' % (view, tab))
+    return html
+
+
+TAB_JS = r"""
+(function(){
+  var KEY='sw-tab';
+  var tabs=document.querySelectorAll('.sw-tab');
+  if(!tabs.length) return;
+  function apply(key){
+    document.body.setAttribute('data-tab', key);
+    tabs.forEach(function(b){
+      b.setAttribute('aria-selected', String(b.dataset.tab===key)); });
+    // 지도가 숨어 있다 나오면 크기를 0 으로 재어 둔 상태라 다시 재게 한다.
+    window.dispatchEvent(new Event('resize'));
+  }
+  var saved=null;
+  try{ saved=localStorage.getItem(KEY); }catch(e){}
+  var first=tabs[0].dataset.tab;
+  var ok=false;
+  tabs.forEach(function(b){ if(b.dataset.tab===saved) ok=true; });
+  apply(ok ? saved : first);
+  tabs.forEach(function(b){
+    b.addEventListener('click', function(){
+      apply(b.dataset.tab);
+      try{ localStorage.setItem(KEY, b.dataset.tab); }catch(e){}
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+})();
+"""
+
+
 def render_viewbar() -> str:
     chips = "".join(
         '<button type="button" class="vw on" data-view-toggle="%s" '
@@ -1980,7 +2047,7 @@ def render(data: dict) -> str:
 
     nier, kma = (data.get("nier") or {}, data.get("kma") or {})
 
-    return """<!doctype html>
+    html = """<!doctype html>
 <html lang="ko" data-theme="light"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>세종시 물환경 읽기</title>
@@ -1997,6 +2064,7 @@ def render(data: dict) -> str:
   </div>
 </header>
 %s%s
+%s
 %s
 <div class="kpis" data-view="kpi">%s</div>
 %s
@@ -2035,7 +2103,7 @@ def render(data: dict) -> str:
   %s
 </footer>
 </div><script>%s</script></body></html>""" % (
-        THEME_BOOT, load_css(), FONT_LINK, banner, render_sisters(), esc(generated), THEME_TOGGLE, demo_note, alerts, render_viewbar(), kpis,
+        THEME_BOOT, load_css(), FONT_LINK, banner, render_sisters(), esc(generated), THEME_TOGGLE, demo_note, alerts, render_tabs(), render_viewbar(), kpis,
         render_freshness(data),
         render_explorer(build_points(data), data),
         render_quality(nier), render_weather(kma), render_pollution(data),
@@ -2043,8 +2111,9 @@ def render(data: dict) -> str:
         render_flood_stats(load_flood_stats()),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),
-        THEME_JS + VIEW_JS + CHART_JS
+        THEME_JS + VIEW_JS + TAB_JS + CHART_JS
         + (AUTOREFRESH_JS % int((data.get("site") or {}).get("refresh_minutes", 5))))
+    return tag_tabs(html)
 
 
 def write(data: dict, path: str = OUT_PATH) -> str:

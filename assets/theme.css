@@ -959,3 +959,30 @@ h2, h3 { font-family: var(--sans); letter-spacing: -.02em; }
 }
 .thsel select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .thnote { font-size: 10.5px; color: var(--muted); max-width: 260px; line-height: 1.4; }
+
+/* ── 탭 줄 (지역안전 읽기와 같은 모양) ────────────────────────── */
+.sw-tabs {
+  display: flex; gap: 2px; align-items: stretch; flex-wrap: wrap;
+  border-bottom: 1px solid var(--line); margin: 2px 0 12px;
+}
+.sw-tab {
+  border: 0; border-bottom: 3px solid transparent; background: none;
+  padding: 9px 16px 7px; cursor: pointer; text-align: left;
+  color: var(--muted); font: inherit;
+}
+.sw-tab b { display: block; font-size: 14px; font-weight: 600; }
+.sw-tab span { display: block; font-size: 11px; color: var(--muted); }
+.sw-tab:hover { background: var(--panel-2); }
+.sw-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sw-tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--fg); }
+.sw-tab[aria-selected="true"] b { font-weight: 700; color: var(--accent); }
+
+/* 탭이 블록을 숨기는 쪽이 '보기' 칩보다 세다. 칩은 인라인 display 로 켜고 끄는데,
+   !important 가 인라인을 이기므로 '다른 탭 블록'은 칩을 켜 둬도 안 나온다. */
+body[data-tab="live"]  [data-tabgroup="study"],
+body[data-tab="study"] [data-tabgroup="live"] { display: none !important; }
+
+@media (max-width: 560px) {
+  .sw-tab { padding: 8px 11px 6px; }
+  .sw-tab span { display: none; }       /* 좁으면 설명을 접는다 */
+}
