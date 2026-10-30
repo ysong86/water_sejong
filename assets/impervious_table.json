@@ -1,0 +1,464 @@
+{
+ "_note": "토지피복지도 세분류 41개 항목의 투수/불투수 구분과 유출곡선지수. 별표 '불투수면적률 및 물순환율 산정방법'에서 옮겨 적었다. 불투수 판정은 이분법이며, 92·95 같은 숫자는 불투수율이 아니라 유출곡선지수(CN)다 — 물순환율 계산에만 쓴다.",
+ "_source_status": "국가법령정보센터가 제공하는 별표 PDF(기후에너지환경부 작성, 2024-05-24). 현행 물순환촉진법 시행규칙·시행령의 별표 목록에서는 확인되지 않았다. 화면에 법령 근거로 표기하기 전에 소관과(기후에너지환경부 물이용정책과, 044-201-7146)에 현행 여부를 확인할 것.",
+ "formula": "불투수면적률(%) = 불투수 항목 면적 합 / 대상지역 총면적 x 100",
+ "soil_groups": [
+  "A",
+  "B",
+  "C",
+  "D"
+ ],
+ "classes": [
+  {
+   "code": 111,
+   "name": "단독주거시설",
+   "impervious": true,
+   "cn": [
+    92,
+    92,
+    92,
+    92
+   ]
+  },
+  {
+   "code": 112,
+   "name": "공동주거시설",
+   "impervious": true,
+   "cn": [
+    92,
+    92,
+    92,
+    92
+   ]
+  },
+  {
+   "code": 121,
+   "name": "공업시설",
+   "impervious": true,
+   "cn": [
+    93,
+    93,
+    93,
+    93
+   ]
+  },
+  {
+   "code": 131,
+   "name": "상업·업무시설",
+   "impervious": true,
+   "cn": [
+    95,
+    95,
+    95,
+    95
+   ]
+  },
+  {
+   "code": 132,
+   "name": "혼합지역",
+   "impervious": true,
+   "cn": [
+    94,
+    94,
+    94,
+    94
+   ]
+  },
+  {
+   "code": 141,
+   "name": "문화·체육·휴양시설",
+   "impervious": true,
+   "cn": [
+    87,
+    87,
+    87,
+    87
+   ]
+  },
+  {
+   "code": 151,
+   "name": "공항",
+   "impervious": true,
+   "cn": [
+    93,
+    93,
+    93,
+    93
+   ]
+  },
+  {
+   "code": 152,
+   "name": "항만",
+   "impervious": true,
+   "cn": [
+    93,
+    93,
+    93,
+    93
+   ]
+  },
+  {
+   "code": 153,
+   "name": "철도",
+   "impervious": false,
+   "cn": [
+    83,
+    89,
+    92,
+    93
+   ]
+  },
+  {
+   "code": 154,
+   "name": "도로",
+   "impervious": true,
+   "cn": [
+    93,
+    93,
+    93,
+    93
+   ]
+  },
+  {
+   "code": 155,
+   "name": "기타교통통신시설",
+   "impervious": true,
+   "cn": [
+    93,
+    93,
+    93,
+    93
+   ]
+  },
+  {
+   "code": 161,
+   "name": "환경기초시설",
+   "impervious": true,
+   "cn": [
+    87,
+    87,
+    87,
+    87
+   ]
+  },
+  {
+   "code": 162,
+   "name": "교육·행정시설",
+   "impervious": true,
+   "cn": [
+    87,
+    87,
+    87,
+    87
+   ]
+  },
+  {
+   "code": 163,
+   "name": "기타 공공시설",
+   "impervious": true,
+   "cn": [
+    87,
+    87,
+    87,
+    87
+   ]
+  },
+  {
+   "code": 211,
+   "name": "경지정리가 된 논",
+   "impervious": false,
+   "cn": [
+    79,
+    79,
+    79,
+    79
+   ]
+  },
+  {
+   "code": 212,
+   "name": "경지정리가 안 된 논",
+   "impervious": false,
+   "cn": [
+    79,
+    79,
+    79,
+    79
+   ]
+  },
+  {
+   "code": 221,
+   "name": "경지정리가 된 밭",
+   "impervious": false,
+   "cn": [
+    63,
+    74,
+    82,
+    85
+   ]
+  },
+  {
+   "code": 222,
+   "name": "경지정리가 안 된 밭",
+   "impervious": false,
+   "cn": [
+    63,
+    74,
+    82,
+    85
+   ]
+  },
+  {
+   "code": 231,
+   "name": "시설재배지",
+   "impervious": true,
+   "cn": [
+    91,
+    91,
+    91,
+    91
+   ]
+  },
+  {
+   "code": 241,
+   "name": "과수원",
+   "impervious": false,
+   "cn": [
+    70,
+    79,
+    84,
+    88
+   ]
+  },
+  {
+   "code": 251,
+   "name": "목장·양식장",
+   "impervious": true,
+   "cn": [
+    89,
+    89,
+    89,
+    89
+   ]
+  },
+  {
+   "code": 252,
+   "name": "기타재배지",
+   "impervious": false,
+   "cn": [
+    68,
+    79,
+    86,
+    89
+   ]
+  },
+  {
+   "code": 311,
+   "name": "활엽수림",
+   "impervious": false,
+   "cn": [
+    48,
+    69,
+    79,
+    85
+   ]
+  },
+  {
+   "code": 321,
+   "name": "침엽수림",
+   "impervious": false,
+   "cn": [
+    48,
+    69,
+    79,
+    85
+   ]
+  },
+  {
+   "code": 331,
+   "name": "혼효림",
+   "impervious": false,
+   "cn": [
+    48,
+    69,
+    79,
+    85
+   ]
+  },
+  {
+   "code": 411,
+   "name": "자연초지",
+   "impervious": false,
+   "cn": [
+    30,
+    58,
+    71,
+    78
+   ]
+  },
+  {
+   "code": 421,
+   "name": "골프장",
+   "impervious": false,
+   "cn": [
+    49,
+    69,
+    79,
+    84
+   ]
+  },
+  {
+   "code": 422,
+   "name": "묘지",
+   "impervious": false,
+   "cn": [
+    49,
+    69,
+    79,
+    84
+   ]
+  },
+  {
+   "code": 423,
+   "name": "기타초지",
+   "impervious": false,
+   "cn": [
+    49,
+    69,
+    79,
+    84
+   ]
+  },
+  {
+   "code": 511,
+   "name": "내륙습지",
+   "impervious": false,
+   "cn": [
+    100,
+    100,
+    100,
+    100
+   ]
+  },
+  {
+   "code": 521,
+   "name": "갯벌",
+   "impervious": false,
+   "cn": [
+    100,
+    100,
+    100,
+    100
+   ]
+  },
+  {
+   "code": 522,
+   "name": "염전",
+   "impervious": true,
+   "cn": [
+    100,
+    100,
+    100,
+    100
+   ]
+  },
+  {
+   "code": 611,
+   "name": "해변",
+   "impervious": false,
+   "cn": [
+    77,
+    86,
+    91,
+    94
+   ]
+  },
+  {
+   "code": 612,
+   "name": "강기슭",
+   "impervious": false,
+   "cn": [
+    77,
+    86,
+    91,
+    94
+   ]
+  },
+  {
+   "code": 613,
+   "name": "암벽바위",
+   "impervious": false,
+   "cn": [
+    77,
+    86,
+    91,
+    94
+   ]
+  },
+  {
+   "code": 621,
+   "name": "채광지역",
+   "impervious": false,
+   "cn": [
+    68,
+    79,
+    86,
+    89
+   ]
+  },
+  {
+   "code": 622,
+   "name": "운동장",
+   "impervious": false,
+   "cn": [
+    77,
+    86,
+    91,
+    94
+   ]
+  },
+  {
+   "code": 623,
+   "name": "기타나지",
+   "impervious": false,
+   "cn": [
+    77,
+    86,
+    91,
+    94
+   ]
+  },
+  {
+   "code": 711,
+   "name": "하천",
+   "impervious": false,
+   "cn": [
+    100,
+    100,
+    100,
+    100
+   ]
+  },
+  {
+   "code": 712,
+   "name": "호소",
+   "impervious": false,
+   "cn": [
+    100,
+    100,
+    100,
+    100
+   ]
+  },
+  {
+   "code": 721,
+   "name": "해양수",
+   "impervious": false,
+   "cn": [
+    100,
+    100,
+    100,
+    100
+   ]
+  }
+ ]
+}

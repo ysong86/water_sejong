@@ -247,7 +247,10 @@ def render(points, width=560, height=None) -> str:
     # 0) 배경지도 자리 — 비워 둔다. 칩을 켜면 JS 가 여기에 타일 <image> 를 채운다.
     #    타일을 HTML 에 구워 넣지 않는 이유: 켜지 않으면 바깥으로 요청이 한 번도
     #    나가지 않아야 하고, 배율에 맞는 타일 레벨은 볼 때가 되어야 정해지기 때문이다.
-    layers = ['<g class="basemap" aria-hidden="true"></g>']
+    # 주제도(환경공간정보 WMS)는 배경지도 바로 위, 우리 도형들 아래에 둔다.
+    # 위에 얹으면 하천·관측지점을 덮어 버려서 상황판 노릇을 못 한다.
+    layers = ['<g class="basemap" aria-hidden="true"></g>',
+              '<g class="themelayer" aria-hidden="true"></g>']
 
     # 1) 행정동 면
     dong_paths, dong_labels = [], []

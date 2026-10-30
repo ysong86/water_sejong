@@ -921,3 +921,41 @@ h2, h3 { font-family: var(--sans); letter-spacing: -.02em; }
 .panel > h2, .panel h2:first-child { border-bottom: 1px solid var(--fg); padding-bottom: 8px; }
 .theme-toggle { border-radius: 0; }
 .theme-toggle button { border-radius: 0; }
+
+/* ── 불투수면적률 ────────────────────────────────────────────── */
+.ivhead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  margin-bottom: 10px; }
+.ivbig { font-size: 34px; font-weight: 700; line-height: 1; color: var(--fd4);
+  font-variant-numeric: tabular-nums; }
+.ivbig small { font-size: 17px; margin-left: 2px; }
+.ivmeta { font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+.ivmeta b { color: var(--fg); }
+.ivgauge { margin: 4px 0 10px; }
+/* 막대 위의 작은 세로선이 전국 평균. 세종 막대와 평균선의 거리가
+   이 패널에서 읽어야 할 전부라, 선을 막대보다 길게 빼서 눈에 걸리게 한다. */
+.ivbar { position: relative; height: 12px; border-radius: 3px;
+  background: var(--panel-3); overflow: visible; }
+.ivbar > i { display: block; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--fd2), var(--fd4)); }
+.ivbar > b { position: absolute; top: -4px; bottom: -4px; width: 2px;
+  background: var(--fg-2); border-radius: 1px; }
+.ivscale { display: flex; justify-content: space-between; margin-top: 3px;
+  font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ivtrend { font-size: 11.5px; color: var(--muted); margin-bottom: 12px; }
+.ivy { display: inline-flex; align-items: baseline; gap: 4px; margin-right: 10px;
+  font-variant-numeric: tabular-nums; }
+.ivy b { font-weight: 600; color: var(--fg); font-size: 10.5px; }
+.ivsub { margin: 0 0 6px; font-size: 12.5px; font-weight: 700; color: var(--fg); }
+.ivnote { margin-top: 9px; }
+
+/* ── 환경주제도 고르는 칸 ─────────────────────────────────────── */
+.thsel { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px;
+  color: var(--muted); }
+.thsel > span { white-space: nowrap; }
+.thsel select {
+  font: inherit; font-size: 11.5px; color: var(--fg);
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 3px 6px; max-width: 190px;
+}
+.thsel select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.thnote { font-size: 10.5px; color: var(--muted); max-width: 260px; line-height: 1.4; }

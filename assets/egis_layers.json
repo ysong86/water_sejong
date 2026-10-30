@@ -1,0 +1,126 @@
+{
+ "_note": "기후에너지환경부 환경공간정보서비스(aid.mcee.go.kr)의 WMS 주제도. 칩을 켤 때만 바깥으로 요청이 나간다.",
+ "attribution": "기후에너지환경부 환경공간정보서비스",
+ "layers": [
+  {
+   "group": "물환경",
+   "id": "wa_imperm",
+   "name": "불투수면 비율 (2025)",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:wa_plg_impermeable",
+   "vp": "ctgr:wa;id:2025",
+   "style": "wa_plg_impermeable",
+   "note": "시군구 단위. 세종은 전역이 한 값(12.99%)으로 칠해진다."
+  },
+  {
+   "group": "물환경",
+   "id": "wa_cow",
+   "name": "축산오염원 한우",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:wa_plg_livestock_pollutant_cow",
+   "vp": "",
+   "style": "wa_plg_livestock_pollutant_cow",
+   "note": ""
+  },
+  {
+   "group": "물환경",
+   "id": "wa_pig",
+   "name": "축산오염원 돼지",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:wa_plg_livestock_pollutant_pig",
+   "vp": "",
+   "style": "wa_plg_livestock_pollutant_pig",
+   "note": ""
+  },
+  {
+   "group": "물환경",
+   "id": "wa_chicken",
+   "name": "축산오염원 닭",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:wa_plg_livestock_pollutant_chicken",
+   "vp": "",
+   "style": "wa_plg_livestock_pollutant_chicken",
+   "note": ""
+  },
+  {
+   "group": "자연환경",
+   "id": "na_green",
+   "name": "녹지(녹피)면적비율 (2025)",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:na_plg_green_coverage_area",
+   "vp": "ctgr:na;id:2025",
+   "style": "na_plg_green_coverage_area_ratio",
+   "note": "행정구역 단위 비율."
+  },
+  {
+   "group": "자연환경",
+   "id": "na_green_per",
+   "name": "1인당 녹지면적 (2025)",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:na_plg_green_coverage_area",
+   "vp": "ctgr:na;id:2025",
+   "style": "na_plg_green_coverage_area_per",
+   "note": ""
+  },
+  {
+   "group": "자연환경",
+   "id": "na_endangered",
+   "name": "멸종위기종 발견 빈도",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:na_plg_endangered",
+   "vp": "",
+   "style": "na_plg_endangered_sum",
+   "note": "전 분류군 합계."
+  },
+  {
+   "group": "자연환경",
+   "id": "na_endangered_birds",
+   "name": "멸종위기종 · 조류",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:na_plg_endangered",
+   "vp": "",
+   "style": "na_plg_endangered_birds",
+   "note": ""
+  },
+  {
+   "group": "자연환경",
+   "id": "na_endangered_fish",
+   "name": "멸종위기종 · 어류",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:na_plg_endangered",
+   "vp": "",
+   "style": "na_plg_endangered_fish",
+   "note": "하천 생태와 직결된다."
+  },
+  {
+   "group": "자연환경",
+   "id": "na_eco",
+   "name": "생태관광지역·명품마을",
+   "url": "https://api.mcee.go.kr/geoserver/me/wms",
+   "layer": "me:na_plg_ecological_adm",
+   "vp": "id:EAFV",
+   "style": "na_plg_ecological_adm",
+   "note": ""
+  },
+  {
+   "group": "토지피복",
+   "id": "lc_2025",
+   "name": "세분류 토지피복지도 (2025)",
+   "url": "https://api.mcee.go.kr/geoserver/wms",
+   "layer": "EGIS:lv3_2025y",
+   "vp": "",
+   "style": "",
+   "note": "41개 세분류. 불투수면적률의 바탕이 되는 원본 지도다."
+  },
+  {
+   "group": "토지피복",
+   "id": "lc_2022",
+   "name": "세분류 토지피복지도 (2022)",
+   "url": "https://api.mcee.go.kr/geoserver/wms",
+   "layer": "EGIS:lv3_2022y",
+   "vp": "",
+   "style": "",
+   "note": "2025년 것과 번갈아 켜면 3년간 바뀐 곳이 보인다."
+  }
+ ]
+}

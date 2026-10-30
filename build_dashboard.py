@@ -740,6 +740,45 @@ def _basemap_chip(data=None) -> str:
             % esc(base.get("label") or "배경지도"))
 
 
+def load_egis_layers() -> dict:
+    """환경공간정보 주제도 목록. 없으면 고르는 칸 자체가 안 나온다."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "assets", "egis_layers.json")
+    try:
+        with open(path, encoding="utf-8") as fp:
+            return json.load(fp)
+    except (OSError, ValueError):
+        return {}
+
+
+def _theme_picker(catalog: dict) -> str:
+    """주제도는 칩이 아니라 고르는 칸으로 둔다.
+
+    칩으로 깔면 12개가 줄을 넘어가고, 무엇보다 두 장을 동시에 켜면 서로를
+    가려 아무것도 안 보인다. 한 번에 한 장만 고르게 하는 편이 맞다.
+    """
+    layers = (catalog or {}).get("layers") or []
+    if not layers:
+        return ""
+    groups, order = {}, []
+    for layer in layers:
+        group = layer.get("group") or "기타"
+        if group not in groups:
+            groups[group] = []
+            order.append(group)
+        groups[group].append(layer)
+    body = "".join(
+        '<optgroup label="%s">%s</optgroup>'
+        % (esc(group), "".join('<option value="%s">%s</option>'
+                               % (esc(l["id"]), esc(l["name"]))
+                               for l in groups[group]))
+        for group in order)
+    return ('<label class="thsel" title="기후에너지환경부 환경공간정보 주제도. '
+            '고를 때만 바깥으로 요청이 나갑니다."><span>주제도</span>'
+            '<select data-theme-layer><option value="">없음</option>%s</select>'
+            '</label><span class="thnote" data-theme-note></span>' % body)
+
+
 def render_maptools(floods, data=None) -> str:
     zoom = ('<div class="zoombtns">'
             '<button type="button" data-zoom="in" title="확대">+</button>'
@@ -753,8 +792,9 @@ def render_maptools(floods, data=None) -> str:
                     '<code>assets/flood/</code> 에 넣으면 여기서 켤 수 있습니다</div>')
         else:
             hint = ('<div class="ft-empty">침수·범람도 <b>%s</b></div>' % PENDING_NOTE)
-        return ('<div class="maptools">%s%s%s</div>'
-                % (zoom, hint, _basemap_chip(data)))
+        return ('<div class="maptools">%s%s%s%s</div>'
+                % (zoom, hint, _basemap_chip(data),
+                   _theme_picker(load_egis_layers())))
 
     chips = []
     for layer in floods:
@@ -764,8 +804,9 @@ def render_maptools(floods, data=None) -> str:
                      'style="--c:%s">%s</button>'
                      % (esc(layer["id"]), layer["color"], esc(label or layer["id"])))
     return ('<div class="maptools">%s<div class="fts">'
-            '<span class="ft-label">침수·범람</span>%s</div>%s</div>'
-            % (zoom, "".join(chips), _basemap_chip(data)))
+            '<span class="ft-label">침수·범람</span>%s</div>%s%s</div>'
+            % (zoom, "".join(chips), _basemap_chip(data),
+               _theme_picker(load_egis_layers())))
 
 
 ZOOM_JS = r"""
@@ -889,6 +930,104 @@ ZOOM_JS = r"""
     baseTimer = setTimeout(drawBase, 130);      // 끄는 중에 수십 번 부르지 않게
   }
 
+  // ------------------------------------------------------------ 환경주제도
+  // 배경지도는 타일을 여러 장 깔지만, 주제도는 '지금 보이는 범위' 한 장을
+  // WMS 로 받아 덮는다. 주제도 타일 캐시가 없어 타일로 쪼개면 요청만 수십 배가
+  // 되고, 한 장이면 확대할 때마다 그 배율에 맞는 해상도로 다시 받으면 된다.
+  //
+  // 좌표계는 EPSG:4326 으로 맞춰 받는다. 이 지도의 투영이 경위도를 그대로 늘린
+  // 등장방형이라 4326 과 같은 모양이다 - 3857 로 받으면 위도 방향이 어긋난다.
+  var THEME = (window.__SWTHEME || {});
+  var themeLayer = svg.querySelector('.themelayer');
+  var themeSel = document.querySelector('[data-theme-layer]');
+  var themeNote = document.querySelector('[data-theme-note]');
+  var themeImg = null, themeTimer = null, themeSeq = 0;
+
+  function themeFind(id){
+    var all = THEME.layers || [];
+    for(var i=0;i<all.length;i++){ if(all[i].id === id) return all[i]; }
+    return null;
+  }
+
+  function clearTheme(){
+    if(themeImg){ themeImg.remove(); themeImg = null; }
+  }
+
+  function drawTheme(){
+    if(!themeLayer || !themeSel) return;
+    var spec = themeFind(themeSel.value);
+    if(!spec){ clearTheme(); return; }
+
+    // 화면에 보이는 경위도 범위. 확대/이동 상태(k, tx, ty)에서 바로 나온다.
+    var lonMin=lonAt((0-tx)/k), lonMax=lonAt((W-tx)/k);
+    var latMax=latAt((0-ty)/k), latMin=latAt((H-ty)/k);
+
+    // 받을 그림의 화소 크기. 화면 배율과 확대율을 곱하되 2048 에서 끊는다.
+    var rect = svg.getBoundingClientRect();
+    var shown = Math.max(rect.width || W, 320);
+    var px = Math.min(2048, Math.round(shown * Math.min(k, 4) *
+                                       (window.devicePixelRatio || 1)));
+    var py = Math.round(px * (H / W));
+
+    var q = ['service=WMS','version=1.1.1','request=GetMap','format=image/png',
+             'transparent=true','srs=EPSG:4326',
+             'layers=' + encodeURIComponent(spec.layer),
+             'width=' + px, 'height=' + py,
+             'bbox=' + [lonMin,latMin,lonMax,latMax].join(',')];
+    if(spec.style) q.push('styles=' + encodeURIComponent(spec.style));
+    if(spec.vp) q.push('viewparams=' + encodeURIComponent(spec.vp));
+    var url = spec.url + '?' + q.join('&');
+
+    // 새 그림이 다 받아진 뒤에 옛 그림을 치운다. 먼저 치우면 확대할 때마다
+    // 주제도가 한 번씩 사라졌다 나타나 깜빡인다.
+    var seq = ++themeSeq;
+    var img = document.createElementNS('http://www.w3.org/2000/svg','image');
+    img.setAttribute('x', ((0-tx)/k).toFixed(2));
+    img.setAttribute('y', ((0-ty)/k).toFixed(2));
+    img.setAttribute('width', (W/k).toFixed(2));
+    img.setAttribute('height', (H/k).toFixed(2));
+    img.setAttribute('preserveAspectRatio','none');
+    img.setAttribute('opacity','0.72');
+    img.addEventListener('load', function(){
+      if(seq !== themeSeq){ img.remove(); return; }
+      if(themeImg && themeImg !== img) themeImg.remove();
+      themeImg = img;
+    });
+    img.addEventListener('error', function(){
+      img.remove();
+      if(seq === themeSeq && themeNote) themeNote.textContent = '주제도를 받지 못했습니다';
+    });
+    img.setAttribute('href', url);
+    img.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href', url);
+    themeLayer.appendChild(img);
+  }
+
+  function scheduleTheme(){
+    if(!themeSel || !themeSel.value) return;
+    clearTimeout(themeTimer);
+    themeTimer = setTimeout(drawTheme, 160);
+  }
+
+  if(themeSel){
+    try{
+      var savedTheme = localStorage.getItem('sw-theme-layer');
+      if(savedTheme && themeFind(savedTheme)) themeSel.value = savedTheme;
+    }catch(e){}
+    themeSel.addEventListener('change', function(){
+      var spec = themeFind(themeSel.value);
+      try{ localStorage.setItem('sw-theme-layer', themeSel.value || ''); }catch(e){}
+      if(themeNote) themeNote.textContent = (spec && spec.note) || '';
+      themeSeq++;
+      if(!spec){ clearTheme(); return; }
+      drawTheme();
+    });
+    if(themeSel.value){
+      var cur = themeFind(themeSel.value);
+      if(themeNote && cur) themeNote.textContent = cur.note || '';
+      drawTheme();
+    }
+  }
+
   var credit = svg.querySelector('.basemap-credit');
   if(credit && BASEMAP.attribution) credit.textContent = '배경지도 ' + BASEMAP.attribution;
 
@@ -909,7 +1048,7 @@ ZOOM_JS = r"""
     svg.querySelectorAll('.cs').forEach(function(e){
       e.setAttribute('transform','translate('+e.dataset.x+','+e.dataset.y+') scale('+inv+')'); });
     svg.classList.toggle('zoomed', k>1.01);
-    updateWidths(); updateScale(); scheduleBase(); }
+    updateWidths(); updateScale(); scheduleBase(); scheduleTheme(); }
   function toSvg(evt){ var m=svg.getScreenCTM(); if(!m) return null; m=m.inverse();
     return {x:evt.clientX*m.a+evt.clientY*m.c+m.e, y:evt.clientX*m.b+evt.clientY*m.d+m.f}; }
   function zoomAt(px,py,factor){ var nk=Math.min(MAXK,Math.max(MINK,k*factor));
@@ -983,9 +1122,10 @@ ZOOM_JS = r"""
 def render_explorer(points: list, data=None) -> str:
     floods = sejong_map.load_floods()
     # 배경지도 설정은 JS 가 읽는다. 여기서 한 번만 심는다.
-    base_js = ('<script>window.__SWBASE=%s;</script>'
-               % json.dumps(basemap_config((data or {}).get("site")),
-                            ensure_ascii=False))
+    base_js = ('<script>window.__SWBASE=%s;window.__SWTHEME=%s;</script>'
+               % (json.dumps(basemap_config((data or {}).get("site")),
+                             ensure_ascii=False),
+                  json.dumps(load_egis_layers(), ensure_ascii=False)))
     if not points:
         # 관측지점이 없어도 행정구역·하천수계는 보여준다. 지도까지 사라지면
         # 화면이 통째로 비어 무엇이 잘못됐는지 알 수 없다.
@@ -1153,6 +1293,92 @@ def render_flood_stats(stats: dict) -> str:
     return "%s<div class=\"fdkey\">침수심 %s</div>" % ("".join(blocks), key)
 
 
+def load_impervious() -> dict:
+    """굳혀 둔 불투수면적률. tools/make_impervious.py 가 만든다."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "assets", "sejong_impervious.json")
+    try:
+        with open(path, encoding="utf-8") as fp:
+            return json.load(fp)
+    except (OSError, ValueError):
+        return {}
+
+
+def render_impervious(stats: dict) -> str:
+    """불투수면적률 — 값 하나, 연도별 추세, 무엇이 불투수인지의 내역.
+
+    전국 평균을 같이 보이는 이유: 12.73% 는 그 자체로 높은지 낮은지 알 수 없다.
+    252개 시군구 평균이 22.73% 라는 걸 알아야 '세종은 아직 낮은 편'이라고
+    읽힌다. 순위도 같이 둔다.
+    """
+    if not stats.get("series"):
+        return ('<div class="empty">불투수면적률 자료가 없습니다. '
+                'tools/make_impervious.py 를 한 번 돌려주세요.</div>')
+
+    peers = stats.get("peers") or {}
+    avg = peers.get("average")
+    official = stats.get("official") or {}
+    # 큰 숫자는 기관이 산정한 최신값을 쓴다. 우리가 세분류 통계로 계산한
+    # 연도별 값은 그 아래 추세로 남긴다 — 둘이 같은 방법이라 이어 읽힌다.
+    ratio = official.get("ratio") or stats.get("ratio") or 0
+    year = official.get("year") or stats.get("latest_year")
+    imp_area = official.get("area") or stats.get("impervious_area")
+    # 순위·평균은 큰 숫자와 같은 해의 것을 쓴다. 섞으면 '2025년 12.99%,
+    # 전국 평균 22.73%(2024년)' 처럼 연도가 어긋난 비교가 된다.
+    if official.get("count"):
+        peers = official
+        avg = official.get("average")
+
+    # 전국 평균 대비 위치를 막대 하나로. 0~60% 를 눈금으로 잡는다
+    # (상위 시군구는 85% 까지 가지만 거기에 맞추면 세종 막대가 뭉개진다).
+    span = 60.0
+    gauge = (
+        '<div class="ivgauge">'
+        '<div class="ivbar"><i style="width:%.2f%%"></i>'
+        '<b style="left:%.2f%%" title="전국 평균 %s%%"></b></div>'
+        '<div class="ivscale"><span>0</span><span>30</span><span>60%%</span></div>'
+        '</div>'
+        % (min(ratio / span * 100, 100),
+           min((avg or 0) / span * 100, 100), fmt(avg)))
+
+    trend = "".join(
+        '<span class="ivy"><b>%s</b>%s%%</span>'
+        % (esc(str(row["year"])), fmt(row["ratio"]))
+        for row in stats["series"])
+    if official.get("ratio"):
+        trend += ('<span class="ivy"><b>%s</b>%s%%</span>'
+                  % (esc(str(official["year"])), fmt(official["ratio"])))
+        check = ('<p class="note ivnote">앞의 %s년까지는 세분류 면적 통계로 '
+                 '직접 계산했고, %s년 값은 기후에너지환경부가 산정해 공개한 '
+                 '값입니다. 두 방법이 같은 추세 위에 놓입니다.</p>'
+                 % (esc(str(stats.get("latest_year"))), esc(str(official["year"]))))
+    else:
+        check = ""
+
+
+    parts = stats.get("parts") or []
+    top = max((p["area"] for p in parts), default=0) or 1
+    rows = "".join(
+        '<div class="fdrow"><span class="fq">%s</span>'
+        '<span class="fdbar"><i style="width:%.2f%%;background:var(--fd4)"></i></span>'
+        '<span class="tt">%s</span></div>'
+        % (esc(p["name"]), p["area"] / top * 100.0, fmt(p["area"]))
+        for p in parts)
+
+    return (
+        '<div class="ivhead"><div class="ivbig">%s<small>%%</small></div>'
+        '<div class="ivmeta">%s년 기준 · 불투수 %s / 전체 %s km&sup2;<br>'
+        '전국 %d개 시군구 평균 <b>%s%%</b> · 세종 <b>%d위</b></div></div>'
+        '%s<div class="ivtrend">연도별 %s</div>%s'
+        '<h3 class="ivsub">무엇이 불투수인가 (%s년, km&sup2;)</h3>%s'
+        '<p class="note ivnote">%s</p>'
+        % (fmt(ratio), esc(str(year)),
+           fmt(imp_area), fmt(stats.get("total_area")),
+           peers.get("count") or 0, fmt(avg), peers.get("rank") or 0,
+           gauge, trend, check, esc(str(stats.get("latest_year"))), rows,
+           esc(stats.get("granularity") or "")))
+
+
 def render_weather(kma: dict) -> str:
     now = kma.get("now") or {}
     forecast = kma.get("forecast") or {}
@@ -1294,6 +1520,7 @@ VIEW_SECTIONS = [
     ("weather", "기상"),
     ("pollution", "오염원 통계"),
     ("floodstat", "침수면적"),
+    ("impervious", "불투수면적률"),
 ]
 
 VIEW_JS = r"""
@@ -1784,6 +2011,11 @@ def render(data: dict) -> str:
     <span class="src">국립환경과학원 시군구 통계</span></h2>
     <p class="note">연 단위 통계입니다. 실시간 값이 아닙니다.</p>
     %s</section>
+  <section class="panel" data-view="impervious"><h2>세종시 불투수면적률
+    <span class="src">환경공간정보 세분류 토지피복</span></h2>
+    <p class="note">빗물이 땅으로 스며들지 못하는 면적의 비율입니다. 높을수록
+    비가 그대로 하천으로 흘러듭니다.</p>
+    %s</section>
   <section class="panel wide" data-view="floodstat"><h2>세종시 빈도별 침수면적
     <span class="src">한강홍수통제소 홍수위험지도</span></h2>
     <p class="note">지도로 미리 계산해 둔 <b>가상의 시나리오</b>입니다. 지금 잠겼다는
@@ -1807,6 +2039,7 @@ def render(data: dict) -> str:
         render_freshness(data),
         render_explorer(build_points(data), data),
         render_quality(nier), render_weather(kma), render_pollution(data),
+        render_impervious(load_impervious()),
         render_flood_stats(load_flood_stats()),
         render_errors(data), esc(generated), render_sources(data),
         render_contact(data.get("site")), render_counter(data.get("site")),

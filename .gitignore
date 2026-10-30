@@ -1,5 +1,7 @@
 # 인증키가 들어가는 파일 — 절대 커밋하지 말 것
 config.json
+# 백업본·변형본에도 키가 그대로 들어 있다
+config.json.*
 
 # 수집 결과와 생성물
 data/latest.json
