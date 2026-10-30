@@ -228,8 +228,10 @@ def main(argv=None) -> int:
         "basis": table["_source_status"],
         "formula": table["formula"],
         "official": fetch_official(),
-        "granularity": ("이 통계는 시군구까지만 제공됩니다. 세종은 단층제라 "
-                        "시 전체 한 값이며, 읍면동별로 나눌 수 없습니다."),
+        # 바로 아래에 읍면동 표가 붙으므로 '나눌 수 없다'고 쓰면 앞뒤가 안 맞는다.
+        # 나눌 수 없는 것은 '기관이 공표하는 값'이지 자료 자체가 아니다.
+        "granularity": ("여기까지는 기관이 공표한 값입니다. 공표 단위가 시군구까지라 "
+                        "세종은 단층제인 시 전체 한 값입니다."),
         "source": "기후에너지환경부 환경공간정보 지역별 세분류 토지피복 면적 현황",
         "data_date": stamp_day,
         "fetched_at": stamp(now_kst()),

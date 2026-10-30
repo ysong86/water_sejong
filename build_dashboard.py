@@ -751,6 +751,32 @@ def load_egis_layers() -> dict:
         return {}
 
 
+def load_impervious_dong() -> dict:
+    """읍면동별 불투수면적률. tools/make_impervious_dong.py 가 만든다."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "assets", "sejong_impervious_dong.json")
+    try:
+        with open(path, encoding="utf-8") as fp:
+            return json.load(fp)
+    except (OSError, ValueError):
+        return {}
+
+
+# 단계구분도 구간. 세종은 6%에서 69%까지 벌어져서 균등 구간으로는 읍면 쪽이
+# 전부 같은 색이 된다. 신도시와 읍면이 둘 다 구분되게 간격을 벌려 잡았다.
+DONG_BREAKS = [(10, "var(--fd1)"), (20, "var(--fd2)"), (35, "var(--fd3)"),
+               (55, "var(--fd4)"), (999, "var(--fd5)")]
+
+
+def dong_legend() -> str:
+    labels = ["10% 미만", "10~20%", "20~35%", "35~55%", "55% 이상"]
+    return ('<div class="dglegend" hidden><span class="dgl-label">불투수면적률</span>%s'
+            '<span class="dgl-note">직접 산정값</span></div>'
+            % "".join('<span><i style="background:%s"></i>%s</span>'
+                      % (color, esc(label))
+                      for (_, color), label in zip(DONG_BREAKS, labels)))
+
+
 def _theme_picker(catalog: dict) -> str:
     """주제도는 칩이 아니라 고르는 칸으로 둔다.
 
@@ -773,10 +799,15 @@ def _theme_picker(catalog: dict) -> str:
                                % (esc(l["id"]), esc(l["name"]))
                                for l in groups[group]))
         for group in order)
-    return ('<label class="thsel" title="기후에너지환경부 환경공간정보 주제도. '
+    # 읍면동 단계구분도는 WMS 가 아니라 우리가 계산해 둔 값이다. 그래도 같은
+    # 칸에 둔다 — 쓰는 사람에게는 둘 다 '지도에 겹쳐 보는 것'이라 나눌 이유가 없다.
+    own = ('<optgroup label="직접 산정">'
+           '<option value="dong_imperv">읍면동 불투수면적률</option></optgroup>')
+    return ('<label class="thsel" title="지도에 겹쳐 볼 자료. 환경공간정보 주제도는 '
             '고를 때만 바깥으로 요청이 나갑니다."><span>주제도</span>'
-            '<select data-theme-layer><option value="">없음</option>%s</select>'
-            '</label><span class="thnote" data-theme-note></span>' % body)
+            '<select data-theme-layer><option value="">없음</option>%s%s</select>'
+            '</label><span class="thnote" data-theme-note></span>%s'
+            % (own, body, dong_legend()))
 
 
 def render_maptools(floods, data=None) -> str:
@@ -953,8 +984,45 @@ ZOOM_JS = r"""
     if(themeImg){ themeImg.remove(); themeImg = null; }
   }
 
+  // ---- 읍면동 단계구분도 (우리가 계산해 둔 값. 바깥 요청이 없다)
+  var DONG = (window.__SWDONG || {});
+  var dongLegend = document.querySelector('.dglegend');
+  var dongPaths = svg.querySelectorAll('.dongs [data-dong]');
+
+  function dongColor(ratio){
+    var ramp = DONG.ramp || [];
+    for(var i=0;i<ramp.length;i++){ if(ratio < ramp[i].max) return ramp[i].color; }
+    return ramp.length ? ramp[ramp.length-1].color : '';
+  }
+
+  function paintDongs(on){
+    var byName = {};
+    (DONG.rows || []).forEach(function(r){ byName[r.name] = r; });
+    dongPaths.forEach(function(el){
+      var row = byName[el.dataset.dong];
+      // 값이 없는 행정동은 칠하지 않는다. 0% 로 칠하면 '불투수가 없다'로
+      // 읽히는데, 실제로는 계산에 안 잡힌 것이다.
+      if(!on || !row){
+        el.style.fill = '';
+        var t = el.querySelector('title'); if(t) t.remove();
+        return;
+      }
+      el.style.fill = dongColor(row.ratio);
+      var title = el.querySelector('title');
+      if(!title){
+        title = document.createElementNS('http://www.w3.org/2000/svg','title');
+        el.appendChild(title);
+      }
+      title.textContent = row.name + ' ' + row.ratio.toFixed(2) + '% · 불투수 '
+        + row.impervious.toFixed(2) + ' / ' + row.area.toFixed(2) + ' km²';
+    });
+    if(dongLegend) dongLegend.hidden = !on;
+  }
+
   function drawTheme(){
     if(!themeLayer || !themeSel) return;
+    if(themeSel.value === 'dong_imperv'){ clearTheme(); paintDongs(true); return; }
+    paintDongs(false);
     var spec = themeFind(themeSel.value);
     if(!spec){ clearTheme(); return; }
 
@@ -1004,6 +1072,7 @@ ZOOM_JS = r"""
 
   function scheduleTheme(){
     if(!themeSel || !themeSel.value) return;
+    if(themeSel.value === 'dong_imperv') return;   // 도형이라 저절로 따라간다
     clearTimeout(themeTimer);
     themeTimer = setTimeout(drawTheme, 160);
   }
@@ -1013,15 +1082,25 @@ ZOOM_JS = r"""
       var savedTheme = localStorage.getItem('sw-theme-layer');
       if(savedTheme && themeFind(savedTheme)) themeSel.value = savedTheme;
     }catch(e){}
+    var OWN_NOTE = '세분류 토지피복지도에서 직접 산정했습니다. 공식 통계가 아닙니다.';
     themeSel.addEventListener('change', function(){
-      var spec = themeFind(themeSel.value);
       try{ localStorage.setItem('sw-theme-layer', themeSel.value || ''); }catch(e){}
-      if(themeNote) themeNote.textContent = (spec && spec.note) || '';
       themeSeq++;
+      if(themeSel.value === 'dong_imperv'){
+        if(themeNote) themeNote.textContent = OWN_NOTE;
+        drawTheme();
+        return;
+      }
+      paintDongs(false);
+      var spec = themeFind(themeSel.value);
+      if(themeNote) themeNote.textContent = (spec && spec.note) || '';
       if(!spec){ clearTheme(); return; }
       drawTheme();
     });
-    if(themeSel.value){
+    if(themeSel.value === 'dong_imperv'){
+      if(themeNote) themeNote.textContent = OWN_NOTE;
+      drawTheme();
+    } else if(themeSel.value){
       var cur = themeFind(themeSel.value);
       if(themeNote && cur) themeNote.textContent = cur.note || '';
       drawTheme();
@@ -1122,10 +1201,19 @@ ZOOM_JS = r"""
 def render_explorer(points: list, data=None) -> str:
     floods = sejong_map.load_floods()
     # 배경지도 설정은 JS 가 읽는다. 여기서 한 번만 심는다.
-    base_js = ('<script>window.__SWBASE=%s;window.__SWTHEME=%s;</script>'
+    dong = load_impervious_dong()
+    ramp = [{"max": m, "color": c} for m, c in DONG_BREAKS]
+    base_js = ('<script>window.__SWBASE=%s;window.__SWTHEME=%s;'
+               'window.__SWDONG=%s;</script>'
                % (json.dumps(basemap_config((data or {}).get("site")),
                              ensure_ascii=False),
-                  json.dumps(load_egis_layers(), ensure_ascii=False)))
+                  json.dumps(load_egis_layers(), ensure_ascii=False),
+                  json.dumps({"ramp": ramp,
+                              "rows": [{"name": r["name"], "ratio": r["ratio"],
+                                        "area": r["area"],
+                                        "impervious": r["impervious"]}
+                                       for r in (dong.get("dongs") or [])]},
+                             ensure_ascii=False)))
     if not points:
         # 관측지점이 없어도 행정구역·하천수계는 보여준다. 지도까지 사라지면
         # 화면이 통째로 비어 무엇이 잘못됐는지 알 수 없다.
@@ -1304,6 +1392,35 @@ def load_impervious() -> dict:
         return {}
 
 
+def render_dong_table(dong: dict) -> str:
+    """읍면동별 순위. 지도에 칠한 것과 같은 값이고 같은 색을 쓴다.
+
+    지도만으로는 '얼마나'를 못 읽는다. 색은 구간이라 보람동 69%와 종촌동 60%가
+    같은 칸에 들어간다. 숫자를 같이 둔다.
+    """
+    rows = (dong or {}).get("dongs") or []
+    if not rows:
+        return ""
+    top = max(r["ratio"] for r in rows) or 1
+
+    def color(ratio):
+        for limit, token in DONG_BREAKS:
+            if ratio < limit:
+                return token
+        return DONG_BREAKS[-1][1]
+
+    body = "".join(
+        '<div class="fdrow"><span class="fq">%s</span>'
+        '<span class="fdbar"><i style="width:%.2f%%;background:%s"></i></span>'
+        '<span class="tt">%s%%</span></div>'
+        % (esc(r["name"]), r["ratio"] / top * 100.0, color(r["ratio"]),
+           fmt(r["ratio"]))
+        for r in rows)
+    return ('<h3 class="ivsub">읍면동별 <span class="ivown">직접 산정</span></h3>'
+            '<p class="note ivnote" style="margin-top:0">%s</p>%s'
+            % (esc(dong.get("caveat") or ""), body))
+
+
 def render_impervious(stats: dict) -> str:
     """불투수면적률 — 값 하나, 연도별 추세, 무엇이 불투수인지의 내역.
 
@@ -1371,12 +1488,13 @@ def render_impervious(stats: dict) -> str:
         '전국 %d개 시군구 평균 <b>%s%%</b> · 세종 <b>%d위</b></div></div>'
         '%s<div class="ivtrend">연도별 %s</div>%s'
         '<h3 class="ivsub">무엇이 불투수인가 (%s년, km&sup2;)</h3>%s'
-        '<p class="note ivnote">%s</p>'
+        '<p class="note ivnote">%s</p>%s'
         % (fmt(ratio), esc(str(year)),
            fmt(imp_area), fmt(stats.get("total_area")),
            peers.get("count") or 0, fmt(avg), peers.get("rank") or 0,
            gauge, trend, check, esc(str(stats.get("latest_year"))), rows,
-           esc(stats.get("granularity") or "")))
+           esc(stats.get("granularity") or ""),
+           render_dong_table(load_impervious_dong())))
 
 
 def render_weather(kma: dict) -> str:

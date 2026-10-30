@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import html
 import json
 import math
 import os
@@ -256,7 +257,10 @@ def render(points, width=560, height=None) -> str:
     dong_paths, dong_labels = [], []
     for dong in (admin or {}).get("dongs") or []:
         for ring in dong["rings"]:
-            dong_paths.append('<path d="%s"/>' % _path(projection, ring))
+            # 이름을 붙여 둔다. 읍면동 단계구분도를 칠할 때 JS 가 이걸로 찾는다.
+            dong_paths.append('<path data-dong="%s" d="%s"/>'
+                              % (html.escape(dong["name"], quote=True),
+                                 _path(projection, ring)))
         if dong.get("area", 0) >= LABEL_MIN_AREA and dong.get("label"):
             lx, ly = projection(*dong["label"])
             dong_labels.append(_cs_text(lx, ly, dong["name"],

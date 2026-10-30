@@ -986,3 +986,21 @@ body[data-tab="study"] [data-tabgroup="live"] { display: none !important; }
   .sw-tab { padding: 8px 11px 6px; }
   .sw-tab span { display: none; }       /* 좁으면 설명을 접는다 */
 }
+
+/* ── 읍면동 단계구분도 범례 ───────────────────────────────────── */
+.dglegend {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 11px;
+  margin-top: 7px; font-size: 10.5px; color: var(--muted);
+}
+.dglegend[hidden] { display: none; }
+.dgl-label { font-weight: 600; color: var(--fg); }
+.dglegend > span { display: inline-flex; align-items: center; gap: 4px; }
+.dglegend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block;
+  border: 1px solid var(--line); }
+.dgl-note { font-style: italic; }
+/* 칠해진 행정동은 경계선을 조금 더 또렷하게 — 색 면끼리 붙어 있어 구분이 필요하다 */
+.map .dongs [data-dong][style*="fill"] { stroke-opacity: .9; }
+/* '직접 산정' 꼬리표 — 공식 통계와 섞이지 않게 작게 붙인다 */
+.ivown { font-size: 10.5px; font-weight: 600; color: var(--fd4);
+  border: 1px solid var(--fd2); border-radius: 999px; padding: 1px 7px;
+  margin-left: 6px; vertical-align: 1px; }
