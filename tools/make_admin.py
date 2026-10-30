@@ -174,10 +174,16 @@ def build(src_path: str, out_path: str) -> dict:
         if not rings:
             continue
         biggest = max(rings, key=lambda r: abs(ring_area(r)))
+        # 단순화하면 아주 작은 조각이 점 두세 개로 쪼그라든다. 면이 아니라
+        # 선이 되므로 버린다 — 남겨 두면 면적을 재는 쪽에서 터진다.
+        simplified = [[[round(x, 6), round(y, 6)] for x, y in simplify(r, EPS_DONG)]
+                      for r in rings]
+        simplified = [r for r in simplified if len(r) >= 4]
+        if not simplified:
+            continue
         dongs.append({
             "name": name,
-            "rings": [[[round(x, 6), round(y, 6)] for x, y in simplify(r, EPS_DONG)]
-                      for r in rings],
+            "rings": simplified,
             "label": [round(v, 6) for v in centroid(biggest)],
             "area": abs(ring_area(biggest)),
         })

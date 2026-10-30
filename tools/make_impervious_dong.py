@@ -45,6 +45,7 @@ import urllib.parse
 import urllib.request
 
 from shapely.geometry import Polygon
+from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -80,11 +81,20 @@ def load_dongs():
 
     shapes = []
     for g in dongs:
-        rings = [[((p[0] - lon0) * kx, (p[1] - lat0) * ky) for p in ring]
-                 for ring in g["rings"]]
-        poly = Polygon(rings[0], rings[1:] if len(rings) > 1 else None)
-        if not poly.is_valid:
-            poly = poly.buffer(0)
+        # 링 여러 개는 구멍이 아니라 떨어진 조각이다. make_admin.py 가 바깥
+        # 테두리만 담기 때문이다. 그러니 빼지 말고 합친다.
+        parts = []
+        for ring in g["rings"]:
+            if len(ring) < 4:
+                continue
+            piece = Polygon([((p[0] - lon0) * kx, (p[1] - lat0) * ky) for p in ring])
+            if not piece.is_valid:
+                piece = piece.buffer(0)
+            if not piece.is_empty:
+                parts.append(piece)
+        if not parts:
+            continue
+        poly = parts[0] if len(parts) == 1 else unary_union(parts)
         shapes.append({"name": g["name"], "poly": poly, "area": poly.area / 1e6})
     return shapes, (lon0, lat0, kx, ky)
 
@@ -163,8 +173,9 @@ def main(argv=None):
     total_area = sum(s["area"] for s in shapes)
     print("행정동 %d개, 합계 %.2f km2" % (len(shapes), total_area), flush=True)
 
-    xs = [p[0] for s in shapes for p in s["poly"].exterior.coords]
-    ys = [p[1] for s in shapes for p in s["poly"].exterior.coords]
+    bounds = [s["poly"].bounds for s in shapes]
+    xs = [b[0] for b in bounds] + [b[2] for b in bounds]
+    ys = [b[1] for b in bounds] + [b[3] for b in bounds]
     lon_min = lon0 + min(xs) / kx - 0.01
     lon_max = lon0 + max(xs) / kx + 0.01
     lat_min = lat0 + min(ys) / ky - 0.01
