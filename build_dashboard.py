@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""수집 결과(data/latest.json) → 단일 HTML 상황판.
+"""수집 결과(data/latest.json) → 단일 HTML 읽기.
 
 차트는 외부 라이브러리 없이 파이썬에서 SVG 문자열로 직접 그린다.
 결과 파일은 자기완결형이라 그냥 브라우저로 열면 된다.
@@ -97,7 +97,7 @@ def line_chart(series, color=ACCENT, unit="m", y_title="수위(m)",
                width=320, height=138, digits=2, marks=None, rain=None) -> str:
     """축·눈금·호버 판독이 있는 시계열 선그래프.
 
-    sparkline 은 추세만 보여줄 뿐 값을 읽을 수 없다. 상황판에서는 '지금 몇 m 인지'
+    sparkline 은 추세만 보여줄 뿐 값을 읽을 수 없다. 읽기에서는 '지금 몇 m 인지'
     를 확인해야 하므로 y 눈금과 커서 판독을 붙였다.
     """
     points = [p for p in series if p.get("v") is not None]
@@ -1393,17 +1393,17 @@ AUTOREFRESH_JS = r"""
 """
 
 
-# 함께 보는 상황판 — 네 개가 같은 도시를 다른 각도로 본다. 서로 오갈 길이 없으면
+# 함께 보는 읽기 — 네 개가 같은 도시를 다른 각도로 본다. 서로 오갈 길이 없으면
 # 각각 따로 찾아들어야 하고, 그러면 같이 보라고 만든 보람이 사라진다.
 # 생활권·상가공실 화면에도 같은 블록이 있어 모양을 그쪽에 맞추었다.
 SISTER_SITES = [
-    ("livingzone", "세종 생활권 재구조화 상황판",
+    ("livingzone", "세종 생활권 읽기",
      "https://ysong86.github.io/zone_sejong/"),
-    ("vacant", "세종 상가공실 상황판",
+    ("vacant", "세종 상가공실 읽기",
      "https://ysong86.github.io/vacant_sejong/"),
-    ("water", "세종시 물환경 상황판",
+    ("water", "세종시 물환경 읽기",
      "https://ysong86.github.io/water_sejong/"),
-    ("traffic", "세종시 교통안전 상황판",
+    ("traffic", "세종시 교통안전 읽기",
      "https://ysong86.github.io/traffic_sejong/"),
 ]
 
@@ -1411,7 +1411,7 @@ SELF_ID = "water"
 
 
 def render_sisters() -> str:
-    """다른 상황판 안내는 맨 위 공통 탭 줄(https://ysong86.github.io/nav.js)이 맡는다 — 머리말엔 두지 않는다."""
+    """다른 읽기 안내는 맨 위 공통 탭 줄(https://ysong86.github.io/nav.js)이 맡는다 — 머리말엔 두지 않는다."""
     return ""
 
 
@@ -1756,11 +1756,11 @@ def render(data: dict) -> str:
     return """<!doctype html>
 <html lang="ko" data-theme="light"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>세종시 물환경 상황판</title>
+<title>세종시 물환경 읽기</title>
 %s
 <style>%s</style>%s</head><body><script src="https://ysong86.github.io/nav.js" data-site="water"></script><div class="wrap">
 <header class="top">
-  <h1>세종시 물환경 상황판</h1>
+  <h1>세종시 물환경 읽기</h1>
   %s
   <span class="grow"></span>
   %s
@@ -1798,7 +1798,7 @@ def render(data: dict) -> str:
   지도의 행정구역 경계·하천수계·관측지점은 모두 실제 좌표입니다.
   하천망 © OpenStreetMap 기여자 (ODbL).<br>
   수위·강수 자료는 보정 전 원시자료입니다. 실제 홍수 대응 판단은 한강홍수통제소 공식 발표를 따르십시오.<br>
-  마지막 갱신 %s · 세종특별자치시 물환경 상황판%s
+  마지막 갱신 %s · 세종특별자치시 물환경 읽기%s
   %s
   %s
 </footer>
